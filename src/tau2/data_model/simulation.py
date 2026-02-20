@@ -167,6 +167,20 @@ class RunConfig(BaseModel):
             default=False,
         ),
     ]
+    run_name: Annotated[
+        Optional[str],
+        Field(
+            description="Name for this run (e.g. used as top-level Logfire span name)",
+            default=None,
+        ),
+    ]
+    service_name: Annotated[
+        Optional[str],
+        Field(
+            description="Logfire service name for this run (identifies the service in traces)",
+            default=None,
+        ),
+    ]
 
     def validate(self) -> None:
         """
@@ -355,6 +369,10 @@ class SimulationRun(BaseModel):
     seed: Optional[int] = Field(
         description="Seed used for the simulation.", default=None
     )
+    error: Optional[str] = Field(
+        description="Error message when the run failed (e.g. timeout, connection error).",
+        default=None,
+    )
 
 
 class Results(BaseModel):
@@ -435,6 +453,7 @@ class Results(BaseModel):
                 "termination_reason": sim.termination_reason,
                 "duration": sim.duration,
                 "num_messages": len(sim.messages),
+                "error": sim.error,
                 "info_git_commit": self.info.git_commit,
                 "info_seed": self.info.seed,
                 "info_num_trials": self.info.num_trials,

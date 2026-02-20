@@ -159,6 +159,7 @@ class UserSimulator(BaseUser):
             model=self.llm,
             messages=messages,
             tools=self.tools,
+            caller="user",
             **self.llm_args,
         )
 

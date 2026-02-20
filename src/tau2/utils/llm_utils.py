@@ -1,15 +1,16 @@
 import json
 import re
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import litellm
-from litellm import completion, completion_cost
+import logfire
 from litellm.caching.caching import Cache
 from litellm.main import ModelResponse, Usage
 from loguru import logger
 
 from tau2.config import (
     DEFAULT_LLM_CACHE_TYPE,
+    DEFAULT_LLM_REQUEST_TIMEOUT,
     DEFAULT_MAX_RETRIES,
     LLM_CACHE_ENABLED,
     REDIS_CACHE_TTL,
@@ -93,7 +94,7 @@ def get_response_cost(response: ModelResponse) -> float:
         response.model
     )  # FIXME: Check Litellm, passing the model to completion_cost doesn't work.
     try:
-        cost = completion_cost(completion_response=response)
+        cost = litellm.completion_cost(completion_response=response)
     except Exception as e:
         logger.error(e)
         return 0.0
@@ -104,10 +105,56 @@ def get_response_usage(response: ModelResponse) -> Optional[dict]:
     usage: Optional[Usage] = response.get("usage")
     if usage is None:
         return None
-    return {
+    out: dict[str, Any] = {
         "completion_tokens": usage.completion_tokens,
         "prompt_tokens": usage.prompt_tokens,
     }
+    if getattr(usage, "total_tokens", None) is not None:
+        out["total_tokens"] = usage.total_tokens
+    # Cache-related fields when available (provider-specific keys: Gemini=cache_input, OpenAI=cache_read, LiteLLM=cached_tokens)
+    prompt_details = getattr(usage, "prompt_tokens_details", None)
+    if prompt_details is not None:
+        details = (
+            prompt_details.model_dump(mode="json")
+            if hasattr(prompt_details, "model_dump")
+            else dict(prompt_details)
+            if hasattr(prompt_details, "keys")
+            else {k: getattr(prompt_details, k, None) for k in ("cached_tokens", "cache_read", "cache_input")}
+        )
+        # Drop None values so JSON only has present keys
+        out["prompt_tokens_details"] = {k: v for k, v in details.items() if v is not None}
+        cached = (
+            details.get("cached_tokens")
+            or details.get("cache_read")
+            or details.get("cache_input")
+        )
+        if cached is not None:
+            out["cache_read_tokens"] = int(cached)
+    if getattr(usage, "cache_creation_input_tokens", None) is not None:
+        out["cache_creation_input_tokens"] = usage.cache_creation_input_tokens
+    elif usage.get("cache_creation_input_tokens") is not None:
+        out["cache_creation_input_tokens"] = usage.get("cache_creation_input_tokens")
+    # Reasoning/thinking token count (e.g. Gemini 3 completion_details.reasoning)
+    completion_details = getattr(usage, "completion_tokens_details", None)
+    if completion_details is not None:
+        reasoning_tokens = getattr(completion_details, "reasoning_tokens", None)
+        if reasoning_tokens is not None:
+            out["reasoning_tokens"] = int(reasoning_tokens)
+        # Include full details in result JSON when present (matches llm.token_count.completion_details.*)
+        if hasattr(completion_details, "model_dump"):
+            details = completion_details.model_dump(mode="json")
+        elif hasattr(completion_details, "keys"):
+            details = dict(completion_details)
+        else:
+            details = {k: getattr(completion_details, k, None) for k in ("reasoning_tokens", "text_tokens", "image_tokens", "audio_tokens") if getattr(completion_details, k, None) is not None}
+        if details:
+            out["completion_tokens_details"] = {k: v for k, v in details.items() if v is not None}
+            # Alias for OpenInference / observability schema (llm.token_count.completion_details.reasoning)
+            if reasoning_tokens is not None and "reasoning" not in out["completion_tokens_details"]:
+                out["completion_tokens_details"]["reasoning"] = int(reasoning_tokens)
+    elif getattr(usage, "reasoning_tokens", None) is not None:
+        out["reasoning_tokens"] = int(usage.reasoning_tokens)
+    return out
 
 
 def to_tau2_messages(
@@ -182,6 +229,8 @@ def generate(
     messages: list[Message],
     tools: Optional[list[Tool]] = None,
     tool_choice: Optional[str] = None,
+    *,
+    caller: Optional[Literal["agent", "user", "evaluator"]] = None,
     **kwargs: Any,
 ) -> UserMessage | AssistantMessage:
     """
@@ -192,12 +241,16 @@ def generate(
         messages: The messages to send to the model.
         tools: The tools to use.
         tool_choice: The tool choice to use.
+        caller: Optional label for tracing (e.g. "agent", "user"). Creates a parent
+            span in Logfire so completion spans appear under "agent" or "user".
         **kwargs: Additional arguments to pass to the model.
 
     Returns: A tuple containing the message and the cost.
     """
     if kwargs.get("num_retries") is None:
         kwargs["num_retries"] = DEFAULT_MAX_RETRIES
+    if kwargs.get("timeout") is None:
+        kwargs["timeout"] = DEFAULT_LLM_REQUEST_TIMEOUT
 
     if model.startswith("claude") and not ALLOW_SONNET_THINKING:
         kwargs["thinking"] = {"type": "disabled"}
@@ -205,14 +258,30 @@ def generate(
     tools = [tool.openai_schema for tool in tools] if tools else None
     if tools and tool_choice is None:
         tool_choice = "auto"
-    try:
-        response = completion(
+
+    def _do_completion():
+        return litellm.completion(
             model=model,
             messages=litellm_messages,
             tools=tools,
             tool_choice=tool_choice,
             **kwargs,
         )
+
+    try:
+        # Wrap in a named span so Logfire shows "agent" / "user" (completion nested inside)
+        if caller:
+            with logfire.span(caller) as caller_span:
+                response = _do_completion()
+                # Log reasoning/thinking tokens when present (e.g. Gemini 3)
+                if response.choices:
+                    msg = response.choices[0].message
+                    reasoning = getattr(msg, "reasoning_content", None)
+                    if reasoning:
+                        caller_span.set_attribute("reasoning_content", reasoning)
+                        caller_span.set_attribute("reasoning_content_length", len(reasoning))
+        else:
+            response = _do_completion()
     except Exception as e:
         logger.error(e)
         raise e
@@ -276,14 +345,27 @@ def get_cost(messages: list[Message]) -> tuple[float, float] | None:
 def get_token_usage(messages: list[Message]) -> dict:
     """
     Get the token usage of the interaction between the agent and the user.
+    Includes cache_read_tokens, cache_creation_input_tokens, and reasoning_tokens when present in message usage.
     """
-    usage = {"completion_tokens": 0, "prompt_tokens": 0}
+    usage: dict[str, Any] = {"completion_tokens": 0, "prompt_tokens": 0}
+    cache_read = 0
+    cache_creation = 0
+    reasoning_tokens = 0
     for message in messages:
         if isinstance(message, ToolMessage):
             continue
         if message.usage is None:
             logger.warning(f"Message {message.role}: {message.content} has no usage")
             continue
-        usage["completion_tokens"] += message.usage["completion_tokens"]
-        usage["prompt_tokens"] += message.usage["prompt_tokens"]
+        usage["completion_tokens"] += message.usage.get("completion_tokens", 0)
+        usage["prompt_tokens"] += message.usage.get("prompt_tokens", 0)
+        cache_read += message.usage.get("cache_read_tokens", 0)
+        cache_creation += message.usage.get("cache_creation_input_tokens", 0)
+        reasoning_tokens += message.usage.get("reasoning_tokens", 0)
+    if cache_read:
+        usage["cache_read_tokens"] = cache_read
+    if cache_creation:
+        usage["cache_creation_input_tokens"] = cache_creation
+    if reasoning_tokens:
+        usage["reasoning_tokens"] = reasoning_tokens
     return usage

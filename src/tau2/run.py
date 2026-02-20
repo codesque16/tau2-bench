@@ -1,10 +1,12 @@
 import json
 import multiprocessing
 import random
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
 
+import logfire
 from loguru import logger
 
 from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMSoloAgent
@@ -12,15 +14,43 @@ from tau2.data_model.simulation import (
     AgentInfo,
     Info,
     Results,
+    RewardInfo,
     RunConfig,
     SimulationRun,
+    TerminationReason,
     UserInfo,
 )
 from tau2.data_model.tasks import Task
 from tau2.environment.environment import Environment, EnvironmentInfo
 from tau2.evaluator.evaluator import EvaluationType, evaluate_simulation
 from tau2.gym.gym_agent import GymAgent
-from tau2.metrics.agent_metrics import compute_metrics
+from tau2.metrics.agent_metrics import compute_metrics, is_successful
+
+
+def _set_span_display_name(span, name: str) -> None:
+    """Update the span's display name (for Logfire Live view). Prefer message (shown in UI)."""
+    if hasattr(span, "message"):
+        span.message = name
+    elif hasattr(span, "update_name"):
+        span.update_name(name)
+    else:
+        span.set_attribute("name", name)
+
+
+def _log_evaluation_span(simulation: SimulationRun) -> None:
+    """Emit a nested 'evaluation' span with reward, what passed/failed, and reasons."""
+    with logfire.span("evaluation", _span_name="evaluation") as span:
+        span.set_attribute("termination_reason", simulation.termination_reason.value)
+        span.set_attribute("reward", simulation.reward_info.reward if simulation.reward_info else None)
+        if simulation.reward_info:
+            span.set_attribute(
+                "evaluation",
+                simulation.reward_info.model_dump(mode="json"),
+            )
+        else:
+            span.set_attribute("evaluation", None)
+
+
 from tau2.orchestrator.orchestrator import Orchestrator
 from tau2.registry import RegistryInfo, registry
 from tau2.user.user_simulator import DummyUser, get_global_user_sim_guidelines
@@ -113,6 +143,12 @@ def run_domain(config: RunConfig) -> Results:
     Run simulations for a domain
     """
     config.validate()
+    if config.service_name is not None:
+        logfire.configure(scrubbing=False,
+        service_name=config.service_name)
+    else:
+        logfire.configure(scrubbing=False)
+    logfire.instrument_litellm()
     ConsoleDisplay.display_run_config(config)
     if config.task_set_name is None:
         task_set_name = config.domain
@@ -148,27 +184,52 @@ def run_domain(config: RunConfig) -> Results:
     if save_to is None:
         save_to = make_run_name(config)
     save_to = DATA_DIR / "simulations" / f"{save_to}.json"
-    simulation_results = run_tasks(
+    top_span_name = config.run_name if config.run_name else "simulation_run"
+    # First argument is the span name shown in Logfire (use run name from --name)
+    with logfire.span(
+        top_span_name,
         domain=config.domain,
-        tasks=tasks,
         agent=config.agent,
         user=config.user,
-        llm_agent=config.llm_agent,
-        llm_args_agent=config.llm_args_agent,
-        llm_user=config.llm_user,
-        llm_args_user=config.llm_args_user,
+        num_tasks=len(tasks),
         num_trials=num_trials,
-        max_steps=config.max_steps,
-        max_errors=config.max_errors,
-        save_to=save_to,
-        console_display=True,
-        evaluation_type=EvaluationType.ALL,
-        max_concurrency=config.max_concurrency,
-        seed=config.seed,
-        log_level=config.log_level,
-        enforce_communication_protocol=config.enforce_communication_protocol,
-    )
-    metrics = compute_metrics(simulation_results)
+    ) as span:
+        simulation_results = run_tasks(
+            domain=config.domain,
+            tasks=tasks,
+            agent=config.agent,
+            user=config.user,
+            llm_agent=config.llm_agent,
+            llm_args_agent=config.llm_args_agent,
+            llm_user=config.llm_user,
+            llm_args_user=config.llm_args_user,
+            num_trials=num_trials,
+            max_steps=config.max_steps,
+            max_errors=config.max_errors,
+            save_to=save_to,
+            console_display=True,
+            evaluation_type=EvaluationType.ALL,
+            max_concurrency=config.max_concurrency,
+            seed=config.seed,
+            log_level=config.log_level,
+            enforce_communication_protocol=config.enforce_communication_protocol,
+        )
+        metrics = compute_metrics(simulation_results)
+        # Dedicated metrics span for evaluation results (nested under top span)
+        with logfire.span("metrics", _span_name="evaluation metrics") as metrics_span:
+            metrics_span.set_attribute("avg_reward", metrics.avg_reward)
+            metrics_span.set_attribute("avg_agent_cost", metrics.avg_agent_cost)
+            for k, v in metrics.pass_hat_ks.items():
+                metrics_span.set_attribute(f"pass_hat_{k}", v)
+        # Attach final metrics to the top-level span as well
+        span.set_attribute("metrics.avg_reward", metrics.avg_reward)
+        span.set_attribute("metrics.avg_agent_cost", metrics.avg_agent_cost)
+        for k, v in metrics.pass_hat_ks.items():
+            span.set_attribute(f"metrics.pass_hat_{k}", v)
+        # Rename top span to <span_name> [<pass_hat_1> score] for Logfire Live view
+        pass_hat_1 = metrics.pass_hat_ks.get(1, 0.0)
+        final_top_name = f"{top_span_name} [{pass_hat_1:.3f}]"
+        _set_span_display_name(span, final_top_name)
     ConsoleDisplay.display_agent_metrics(metrics)
 
     return simulation_results
@@ -353,30 +414,81 @@ def run_tasks(
             style="bold green",
         )
         ConsoleDisplay.console.print(console_text)
+        task_start_time = get_now()
         try:
-            simulation = run_task(
-                domain=domain,
-                task=task,
-                agent=agent,
-                user=user,
-                llm_agent=llm_agent,
-                llm_args_agent=llm_args_agent,
-                llm_user=llm_user,
-                llm_args_user=llm_args_user,
-                max_steps=max_steps,
-                max_errors=max_errors,
-                evaluation_type=evaluation_type,
-                seed=seed,
-                enforce_communication_protocol=enforce_communication_protocol,
-            )
+            # First argument is the span name shown in Logfire (Task:{task_id})
+            with logfire.span(
+                f"Task:{task.id}",
+                task_id=task.id,
+                trial=trial,
+            ) as task_span:
+                # Nested span: task details (description, user_scenario, evaluation_criteria, etc.)
+                with logfire.span(
+                    "task_details",
+                    _span_name="task details",
+                    task_details=task.model_dump(mode="json"),
+                ):
+                    pass
+                with logfire.span("simulation", _span_name="simulation"):
+                    simulation = run_task(
+                        domain=domain,
+                        task=task,
+                        agent=agent,
+                        user=user,
+                        llm_agent=llm_agent,
+                        llm_args_agent=llm_args_agent,
+                        llm_user=llm_user,
+                        llm_args_user=llm_args_user,
+                        max_steps=max_steps,
+                        max_errors=max_errors,
+                        evaluation_type=evaluation_type,
+                        seed=seed,
+                        enforce_communication_protocol=enforce_communication_protocol,
+                    )
+                # Nested span: evaluation (what passed/failed, reward, reasons)
+                _log_evaluation_span(simulation)
+                # Append result [pass] or [fail] to task span display name
+                reward = (
+                    simulation.reward_info.reward
+                    if simulation.reward_info
+                    else 0.0
+                )
+                result = "pass" if is_successful(reward) else "fail"
+                task_final_name = f"Task:{task.id} [{result}]"
+                task_span.set_attribute("result", result)
+                _set_span_display_name(task_span, task_final_name)
             simulation.trial = trial
             if console_display:
                 ConsoleDisplay.display_simulation(simulation, show_details=False)
             _save(simulation)
+            return simulation
         except Exception as e:
             logger.error(f"Error running task {task.id}, trial {trial}: {e}")
-            raise e
-        return simulation
+            # Build a failed run so we can continue with other tasks; metrics will include it (reward=0).
+            failed_simulation = SimulationRun(
+                id=str(uuid.uuid4()),
+                task_id=task.id,
+                start_time=task_start_time,
+                end_time=get_now(),
+                duration=0.0,
+                termination_reason=TerminationReason.AGENT_ERROR,
+                reward_info=RewardInfo(reward=0.0),
+                messages=[],
+                trial=trial,
+                seed=seed,
+                error=f"{type(e).__name__}: {e}",
+            )
+            _log_evaluation_span(failed_simulation)
+            if console_display:
+                ConsoleDisplay.console.print(
+                    Text(
+                        text=f"  [red]Task {task.id} trial {trial + 1} failed (continuing): {e}[/red]",
+                        style="bold",
+                    ),
+                )
+                ConsoleDisplay.display_simulation(failed_simulation, show_details=False)
+            _save(failed_simulation)
+            return failed_simulation
 
     args = []
     for trial in range(num_trials):

@@ -109,6 +109,7 @@ class LLMAgent(LocalAgent[LLMAgentState]):
             model=self.llm,
             tools=self.tools,
             messages=messages,
+            caller="agent",
             **self.llm_args,
         )
         state.messages.append(assistant_message)
@@ -237,6 +238,7 @@ class LLMGTAgent(LocalAgent[LLMAgentState]):
             model=self.llm,
             tools=self.tools,
             messages=messages,
+            caller="agent",
             **self.llm_args,
         )
         state.messages.append(assistant_message)
@@ -458,6 +460,7 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
             tools=self.tools,
             messages=messages,
             tool_choice="required",
+            caller="agent",
             **self.llm_args,
         )
         if not assistant_message.is_tool_call():

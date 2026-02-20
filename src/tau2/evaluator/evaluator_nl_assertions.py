@@ -115,6 +115,7 @@ class NLAssertionsEvaluator:
         assistant_message = generate(
             model=DEFAULT_LLM_NL_ASSERTIONS,
             messages=messages,
+            caller="evaluator",
             **DEFAULT_LLM_NL_ASSERTIONS_ARGS,
         )
         result_data = json.loads(assistant_message.content)

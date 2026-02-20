@@ -4,6 +4,7 @@ import json
 from tau2.config import (
     DEFAULT_AGENT_IMPLEMENTATION,
     DEFAULT_LLM_AGENT,
+    DEFAULT_LLM_ARGS_AGENT,
     DEFAULT_LLM_TEMPERATURE_AGENT,
     DEFAULT_LLM_TEMPERATURE_USER,
     DEFAULT_LLM_USER,
@@ -52,8 +53,15 @@ def add_run_args(parser):
     parser.add_argument(
         "--agent-llm-args",
         type=json.loads,
-        default={"temperature": DEFAULT_LLM_TEMPERATURE_AGENT},
-        help=f"The arguments to pass to the LLM for the agent. Default is '{{\"temperature\": {DEFAULT_LLM_TEMPERATURE_AGENT}}}'.",
+        default=None,
+        help="The arguments to pass to the LLM for the agent (JSON). Merged with --reasoning-effort. Default includes temperature and reasoning_effort=low.",
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        type=str,
+        choices=["low", "medium", "high"],
+        default=None,
+        help="Reasoning effort for the agent LLM (e.g. Gemini). Default is 'low'. Overrides reasoning_effort in --agent-llm-args if set.",
     )
     parser.add_argument(
         "--user",
@@ -118,6 +126,19 @@ def add_run_args(parser):
         help="The path to save the simulation results. Will be saved to data/simulations/<save_to>.json. If not provided, will save to <domain>_<agent>_<user>_<llm_agent>_<llm_user>_<timestamp>.json. If the file already exists, it will try to resume the run.",
     )
     parser.add_argument(
+        "--name",
+        "-n",
+        type=str,
+        default=None,
+        help="Name for this run (used as top-level Logfire span name).",
+    )
+    parser.add_argument(
+        "--service-name",
+        type=str,
+        default=None,
+        help="Logfire service name for this run (identifies the service in traces).",
+    )
+    parser.add_argument(
         "--max-concurrency",
         type=int,
         default=DEFAULT_MAX_CONCURRENCY,
@@ -150,8 +171,11 @@ def main():
     # Run command
     run_parser = subparsers.add_parser("run", help="Run a benchmark")
     add_run_args(run_parser)
-    run_parser.set_defaults(
-        func=lambda args: run_domain(
+    def _run(args):
+        llm_args_agent = dict(args.agent_llm_args) if args.agent_llm_args is not None else dict(DEFAULT_LLM_ARGS_AGENT)
+        if args.reasoning_effort is not None:
+            llm_args_agent["reasoning_effort"] = args.reasoning_effort
+        return run_domain(
             RunConfig(
                 domain=args.domain,
                 task_set_name=args.task_set_name,
@@ -160,7 +184,7 @@ def main():
                 num_tasks=args.num_tasks,
                 agent=args.agent,
                 llm_agent=args.agent_llm,
-                llm_args_agent=args.agent_llm_args,
+                llm_args_agent=llm_args_agent,
                 user=args.user,
                 llm_user=args.user_llm,
                 llm_args_user=args.user_llm_args,
@@ -172,9 +196,12 @@ def main():
                 seed=args.seed,
                 log_level=args.log_level,
                 enforce_communication_protocol=args.enforce_communication_protocol,
+                run_name=args.name,
+                service_name=args.service_name,
             )
         )
-    )
+
+    run_parser.set_defaults(func=lambda args: _run(args))
 
     # Play command
     play_parser = subparsers.add_parser(
