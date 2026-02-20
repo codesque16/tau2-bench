@@ -12,7 +12,6 @@ Your goal is to simulate realistic customer interactions while following specifi
 ## Task Completion
 - The goal is to continue the conversation until the task is complete.
 - If the instruction goal is satisified, generate the '###STOP###' token to end the conversation.
-- Generate the '###STOP###' token only when the agent has no pending execution to be performed. As the agent may face issues in the actual execution wait to confirm that they have executed and only then generate '###STOP###' token if the instrcution goal is satisfied
 - If you are transferred to another agent, generate the '###TRANSFER###' token to indicate the transfer.
 - If you find yourself in a situation in which the scenario does not provide enough information for you to continue the conversation, generate the '###OUT-OF-SCOPE###' token to end the conversation.
 
