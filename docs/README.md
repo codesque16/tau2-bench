@@ -11,7 +11,13 @@ This folder is a **static site** for viewing simulation trajectories. It is inte
    python3 scripts/export_trajectories_for_pages.py
    ```
 
-   This writes `docs/data/index.json` and `docs/data/task_<id>.json` for each simulated task.
+   By default this exports **all** `data/simulations/*.json` files. Each run is written to `docs/data/<run_id>/` (e.g. `index.json` and `task_<id>.json`), and a manifest `docs/data/runs.json` is created. The viewer then shows a **Run** dropdown so you can switch between runs.
+
+   To export only specific simulation files:
+
+   ```bash
+   python3 scripts/export_trajectories_for_pages.py path/to/run1.json path/to/run2.json
+   ```
 
 2. **Serve the docs folder** (any static server):
 
@@ -44,10 +50,10 @@ The site will be available at:
 
 ## What’s included
 
-- **index.html** – List of all tasks with reward (pass/fail), duration, scenario preview, and link to the trajectory viewer.
-- **viewer.html** – For a single task: task details, run info, evaluation (reward, DB, action checks, communicate checks), and full conversation with tool calls and results.
-- **js/index.js** – Loads `data/index.json`, renders the table, filter (all / passed / failed).
-- **js/viewer.js** – Reads `?task=<id>`, loads `data/task_<id>.json`, renders task, run, evaluation, and messages.
+- **index.html** – Run selector (when `data/runs.json` exists), then list of tasks for the selected run: reward (pass/fail), duration, scenario preview, and “View trajectory” link. URL can include `?run=<run_id>` to open a specific run.
+- **viewer.html** – For a single task: task details, run info, evaluation, and full conversation. URL params: `?task=<id>` and optionally `?run=<run_id>` so the correct run’s data is loaded; back link returns to the task list for that run.
+- **js/index.js** – Loads `data/runs.json` (if present) and the selected run’s `data/<run_id>/index.json`, renders the table and run dropdown, filter (all / passed / failed).
+- **js/viewer.js** – Reads `?task=<id>` and `?run=<run_id>`, loads the corresponding task JSON from `data/` or `data/<run_id>/`, renders task, run, evaluation, and messages.
 - **css/style.css** – Styles for index and viewer (dark theme, timeline, badges).
 
 All links and script fetches use relative paths so the site works when opened from the filesystem or when served from a subpath (e.g. `/<repo>/`).

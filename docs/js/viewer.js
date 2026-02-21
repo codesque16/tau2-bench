@@ -181,8 +181,14 @@
     return;
   }
 
+  var runId = qs("run");
   var safeId = taskId.replace(/[^\w\-]/g, "_");
-  var url = getDataPath("data/task_" + safeId + ".json");
+  var url = runId
+    ? getDataPath("data/" + runId + "/task_" + safeId + ".json")
+    : getDataPath("data/task_" + safeId + ".json");
+
+  var backLink = document.getElementById("back-link");
+  if (backLink && runId) backLink.href = "index.html?run=" + encodeURIComponent(runId);
 
   fetch(url)
     .then(function (r) {
@@ -194,7 +200,7 @@
       document.getElementById("error").style.display = "none";
       document.getElementById("content").style.display = "block";
 
-      document.getElementById("viewer-title").textContent = "Task " + taskId;
+      document.getElementById("viewer-title").textContent = "Task " + taskId + (runId ? " · " + runId : "");
 
       document.getElementById("task-details").innerHTML = renderTaskDetails(data.task);
       document.getElementById("run-info").innerHTML = renderRunInfo(data.run_info);
