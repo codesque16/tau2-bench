@@ -109,6 +109,8 @@
         return "low";
       }
       runSelectWrap.style.display = "flex";
+      var indexActionsTop = document.getElementById("index-actions-top");
+      if (indexActionsTop) indexActionsTop.style.display = "flex";
       runSelect.innerHTML = runs.map(function (r) {
         return '<option value="' + escapeHtml(r.id) + '">' + escapeHtml(r.label) + " — " + runSummary(r) + "</option>";
       }).join("");
