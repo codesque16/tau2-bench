@@ -226,6 +226,20 @@ class ActionCheck(BaseModel):
     action: Action
     action_match: bool
     action_reward: float
+    mismatch_reason: Annotated[
+        Optional[str],
+        Field(
+            description="When action_match is False: 'not_called' or 'arguments_mismatch'.",
+            default=None,
+        ),
+    ] = None
+    actual_arguments: Annotated[
+        Optional[dict],
+        Field(
+            description="When mismatch_reason is 'arguments_mismatch', the arguments from the trajectory call with the same name.",
+            default=None,
+        ),
+    ] = None
 
 
 class EnvAssertionCheck(BaseModel):

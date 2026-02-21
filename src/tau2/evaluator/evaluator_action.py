@@ -69,21 +69,36 @@ class ActionEvaluator(EvaluatorBase):
         action_checks = []
         for gold_action in golden_actions:
             found = False
+            same_name_call = None
             for pred_tool_call in predicted_tool_calls:
-                if gold_action.compare_with_tool_call(pred_tool_call):
-                    found = True
-                    break
+                if gold_action.name == pred_tool_call.name:
+                    same_name_call = pred_tool_call
+                    if gold_action.compare_with_tool_call(pred_tool_call):
+                        found = True
+                        break
             if not found:
                 gold_action_reward = 0.0
                 gold_action_match = False
+                mismatch_reason = (
+                    "arguments_mismatch"
+                    if same_name_call is not None
+                    else "not_called"
+                )
+                actual_arguments = (
+                    dict(same_name_call.arguments) if same_name_call else None
+                )
             else:
                 gold_action_reward = 1.0
                 gold_action_match = True
+                mismatch_reason = None
+                actual_arguments = None
             action_checks.append(
                 ActionCheck(
                     action=gold_action,
                     action_match=gold_action_match,
                     action_reward=gold_action_reward,
+                    mismatch_reason=mismatch_reason,
+                    actual_arguments=actual_arguments,
                 )
             )
         return action_checks
