@@ -1,0 +1,445 @@
+/* Trajectory viewer – GitHub Pages */
+:root {
+  --bg: #0f0f12;
+  --surface: #18181c;
+  --surface2: #222228;
+  --border: #2e2e36;
+  --text: #e4e4e9;
+  --text-muted: #9b9ba5;
+  --accent: #7c9cf2;
+  --accent-dim: #5a7ad4;
+  --success: #5dd4a0;
+  --fail: #e87272;
+  --user-msg: #2d3a5a;
+  --assistant-msg: #252a35;
+  --tool-msg: #1e2433;
+  --radius: 10px;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* ----- Index page ----- */
+.page-index .container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.page-index h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.page-index .subtitle {
+  color: var(--text-muted);
+  margin-bottom: 2rem;
+}
+
+.index-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.filter-btn:hover {
+  background: var(--surface2);
+}
+.filter-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.task-table th,
+.task-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.task-table th {
+  background: var(--surface2);
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.task-table tr:last-child td {
+  border-bottom: none;
+}
+
+.task-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.task-id {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.reward-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.reward-badge.pass {
+  background: rgba(93, 212, 160, 0.2);
+  color: var(--success);
+}
+.reward-badge.fail {
+  background: rgba(232, 114, 114, 0.2);
+  color: var(--fail);
+}
+
+.scenario-preview {
+  max-width: 380px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.view-link {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ----- Viewer page ----- */
+.page-viewer .topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.page-viewer .back-link {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.page-viewer .back-link:hover {
+  color: var(--accent);
+}
+
+.page-viewer .task-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.page-viewer .container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.viewer-section {
+  margin-bottom: 2rem;
+}
+
+.viewer-section h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Task details card */
+.task-details {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.task-details dl {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.task-details dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 0.15rem;
+}
+.task-details dd {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* Run info */
+.run-info {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.run-info span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Evaluation card */
+.eval-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.eval-overview {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.eval-overview .reward-box {
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.eval-overview .reward-box.pass {
+  background: rgba(93, 212, 160, 0.15);
+  color: var(--success);
+}
+.eval-overview .reward-box.fail {
+  background: rgba(232, 114, 114, 0.15);
+  color: var(--fail);
+}
+
+.eval-overview .breakdown {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.action-checks,
+.communicate-checks {
+  margin-top: 1rem;
+}
+
+.action-check,
+.communicate-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.action-check:last-child,
+.communicate-check:last-child {
+  border-bottom: none;
+}
+
+.check-icon {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+}
+.check-icon.pass {
+  background: var(--success);
+  color: var(--bg);
+}
+.check-icon.fail {
+  background: var(--fail);
+  color: var(--bg);
+}
+
+.check-detail {
+  flex: 1;
+  min-width: 0;
+}
+
+.check-detail .name {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text);
+}
+.check-detail .args {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.communicate-check .justification {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+/* Conversation timeline */
+.timeline {
+  position: relative;
+}
+
+.msg-block {
+  margin-bottom: 1rem;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.msg-block.user {
+  background: var(--user-msg);
+  border-color: #3a4a6a;
+}
+.msg-block.assistant {
+  background: var(--assistant-msg);
+  border-color: var(--border);
+}
+.msg-block.tool {
+  background: var(--tool-msg);
+  border-color: var(--border);
+  margin-left: 1.5rem;
+}
+
+.msg-header {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.msg-body {
+  padding: 0.85rem 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.msg-body:empty {
+  display: none;
+}
+
+.tool-calls-list {
+  padding: 0.5rem 1rem 0.75rem;
+}
+
+.tool-call-item {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+.tool-call-item:last-child {
+  margin-bottom: 0;
+}
+
+.tool-call-item .tool-name {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 0.25rem;
+}
+
+.tool-call-item .tool-args {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.tool-result {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.loading,
+.error-msg {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--text-muted);
+}
+
+.error-msg {
+  color: var(--fail);
+}
+
+@media (max-width: 640px) {
+  .task-table th:nth-child(3),
+  .task-table td:nth-child(3) {
+    display: none;
+  }
+  .scenario-preview {
+    max-width: 200px;
+  }
+}
