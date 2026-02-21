@@ -104,7 +104,9 @@
         body += '<div class="tool-calls-list">';
         m.tool_calls.forEach(function (tc) {
           var args = tc.arguments && typeof tc.arguments === "object" ? JSON.stringify(tc.arguments, null, 2) : String(tc.arguments || "");
-          body += '<div class="tool-call-item"><div class="tool-name">' + escapeHtml(tc.name || "—") + "</div><div class="tool-args">" + escapeHtml(args) + "</div></div>";
+          body += '<div class="tool-call-item">';
+          body += '<div class="tool-name">' + escapeHtml(tc.name || "\u2014") + '</div>';
+          body += '<div class="tool-args">' + escapeHtml(args) + '</div></div>';
         });
         body += "</div>";
       }
@@ -190,6 +192,19 @@
     loadTask(runSelectRight.value, taskSelectRight.value, bodyRight);
   });
 
+  function addRunOptions(sel) {
+    var empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "\u2014 Select run \u2014";
+    sel.appendChild(empty);
+    runs.forEach(function (r) {
+      var opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = r.label + " (" + (r.num_passed != null ? r.num_passed + "/" + r.num_tasks : r.num_tasks) + ")";
+      sel.appendChild(opt);
+    });
+  }
+
   fetch(getDataPath("data/runs.json"))
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (data) {
@@ -198,17 +213,10 @@
         return;
       }
       runs = data.runs;
-      runs.forEach(function (r) {
-        var label = r.label + " (" + (r.num_passed != null ? r.num_passed + "/" + r.num_tasks : r.num_tasks) + ")";
-        [runSelectLeft, runSelectRight].forEach(function (sel) {
-          var opt = document.createElement("option");
-          opt.value = r.id;
-          opt.textContent = label;
-          sel.appendChild(opt);
-        });
-      });
+      addRunOptions(runSelectLeft);
+      addRunOptions(runSelectRight);
     })
     .catch(function () {
-      bodyLeft.innerHTML = '<p class="error-msg">Could not load runs.</p>';
+      bodyLeft.innerHTML = '<p class="error-msg">Could not load runs. Serve the docs folder (e.g. with a local server) so data/runs.json can be loaded.</p>';
     });
 })();
