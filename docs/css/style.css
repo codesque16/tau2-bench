@@ -497,13 +497,79 @@ a:hover {
   word-break: break-all;
 }
 
+/* Tool output: folded by default, full content, pretty-printed */
+.tool-output-details {
+  border-top: 1px solid var(--border);
+}
+.tool-output-summary {
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.tool-output-summary::-webkit-details-marker {
+  display: none;
+}
+.tool-output-summary::before {
+  content: "▶ ";
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.tool-output-details[open] .tool-output-summary::before {
+  transform: rotate(90deg);
+}
 .tool-result {
   font-size: 0.85rem;
   color: var(--text-muted);
-  max-height: 200px;
+  max-height: 420px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+  margin: 0;
+  padding: 0.85rem 1rem;
+}
+
+/* Reasoning block (when present) */
+.reasoning-details {
+  margin-bottom: 0.5rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+.reasoning-summary {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-dim);
+  cursor: pointer;
+  list-style: none;
+}
+.reasoning-summary::-webkit-details-marker {
+  display: none;
+}
+.reasoning-summary::before {
+  content: "▶ ";
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.reasoning-details[open] .reasoning-summary::before {
+  transform: rotate(90deg);
+}
+.reasoning-body {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-muted);
+  max-height: 320px;
+  overflow: auto;
 }
 
 .loading,

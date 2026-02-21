@@ -94,6 +94,28 @@
     return html;
   }
 
+  function getReasoningText(m) {
+    if (m.reasoning_content && typeof m.reasoning_content === "string") return m.reasoning_content;
+    var raw = m.raw_data && m.raw_data.message;
+    if (!raw) return "";
+    if (raw.reasoning_content && typeof raw.reasoning_content === "string") return raw.reasoning_content;
+    var blocks = raw.thinking_blocks;
+    if (Array.isArray(blocks) && blocks.length) {
+      return blocks.map(function (b) { return b.thinking || b.content || ""; }).filter(Boolean).join("\n\n");
+    }
+    return "";
+  }
+
+  function prettyFormatToolOutput(content) {
+    var str = typeof content === "string" ? content : JSON.stringify(content);
+    try {
+      var parsed = JSON.parse(str);
+      return JSON.stringify(parsed, null, 2);
+    } catch (_) {
+      return str;
+    }
+  }
+
   function renderMessages(messages) {
     if (!Array.isArray(messages) || !messages.length) return "<p>No messages.</p>";
     var html = "";
@@ -105,12 +127,18 @@
         (m.turn_idx != null ? "<span>Turn " + m.turn_idx + "</span>" : "") +
         (m.timestamp ? "<span>" + escapeHtml(m.timestamp) + "</span>" : "") + "</div>";
       if (m.role === "tool") {
-        var content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-        if (content.length > 2000) content = content.slice(0, 2000) + "\n… (truncated)";
-        html += '<div class="msg-block tool">' + header + '<div class="msg-body tool-result">' + escapeHtml(content) + "</div></div>";
+        var formatted = prettyFormatToolOutput(m.content);
+        html += '<div class="msg-block tool">' + header +
+          '<details class="tool-output-details"><summary class="tool-output-summary">Tool output</summary>' +
+          '<pre class="msg-body tool-result">' + escapeHtml(formatted) + "</pre></details></div>";
         continue;
       }
       var body = "";
+      var reasoning = getReasoningText(m);
+      if (reasoning) {
+        body += '<details class="reasoning-details"><summary class="reasoning-summary">Reasoning</summary>' +
+          '<pre class="reasoning-body">' + escapeHtml(reasoning) + "</pre></details>";
+      }
       if (m.tool_calls && m.tool_calls.length) {
         body += '<div class="tool-calls-list">';
         m.tool_calls.forEach(function (tc) {
