@@ -77,6 +77,7 @@ def compute_simulation_rewards(
 def evaluate_trajectories(
     input_paths: list[str],
     output_dir: str | None = None,
+    in_place: bool = False,
     evaluation_type: EvaluationType = EvaluationType.ALL,
 ) -> None:
     """
@@ -85,6 +86,7 @@ def evaluate_trajectories(
     Args:
         input_paths: List of paths to trajectory files, directories, or glob patterns
         output_dir: Optional directory to save updated results files. If None, only displays metrics.
+        in_place: If True, overwrite each input file with updated rewards (e.g. to add mismatch_reason to action_checks).
         evaluation_type: Type of evaluation to perform
     """
     files = expand_paths(input_paths, extension=".json")
@@ -97,15 +99,17 @@ def evaluate_trajectories(
         console.print(
             f"\n🔍 Processing {len(files)} trajectory file(s)", style="bold blue"
         )
-        # Create output directory
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
+    elif in_place:
+        console.print(
+            f"\n🔍 Re-evaluating {len(files)} trajectory file(s) in place", style="bold blue"
+        )
     else:
         console.print(
             f"\n🔍 Analyzing {len(files)} trajectory file(s)", style="bold blue"
         )
 
-    # Process each file
     all_files_processed = True
     failed_files = []
 
@@ -121,7 +125,6 @@ def evaluate_trajectories(
         try:
             results = Results.load(file_path)
 
-            # Compute and update rewards (returns new Results object)
             updated_results = compute_simulation_rewards(
                 results=results, evaluation_type=evaluation_type, console=console
             )
@@ -130,12 +133,13 @@ def evaluate_trajectories(
                 style="green",
             )
 
-            # Display metrics
             metrics = compute_metrics(updated_results)
             ConsoleDisplay.display_agent_metrics(metrics)
 
-            # Save updated results if output directory is provided
-            if output_dir:
+            if in_place:
+                updated_results.save(Path(file_path))
+                console.print(f"  💾 Updated in place", style="blue")
+            elif output_dir:
                 input_filename = Path(file_path).name
                 output_file = output_path / f"updated_{input_filename}"
                 updated_results.save(output_file)
@@ -153,7 +157,9 @@ def evaluate_trajectories(
 
     if all_files_processed:
         console.print("🎉 All files processed successfully!", style="bold green")
-        if output_dir:
+        if in_place:
+            console.print("📂 Simulation files updated in place. Re-run export_trajectories_for_pages.py to refresh docs/data.", style="blue")
+        elif output_dir:
             console.print(f"📂 Updated files saved to: {output_dir}", style="blue")
         else:
             console.print("📊 Metrics displayed for all files", style="blue")
@@ -183,6 +189,11 @@ def make_parser():
         "--output-dir",
         help="Directory to save updated trajectory files with recomputed rewards. If not provided, only displays metrics.",
     )
+    parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Overwrite each input file with recomputed rewards (e.g. to add action_check mismatch_reason). Then re-run export_trajectories_for_pages.py to refresh docs/data.",
+    )
     return parser
 
 
@@ -191,7 +202,7 @@ def main():
     logger.configure(handlers=[{"sink": sys.stderr, "level": "ERROR"}])
     parser = make_parser()
     args = parser.parse_args()
-    evaluate_trajectories(args.paths, args.output_dir)
+    evaluate_trajectories(args.paths, args.output_dir, args.in_place)
 
 
 if __name__ == "__main__":

@@ -266,6 +266,11 @@ def main():
         "--output-dir",
         help="Directory to save updated trajectory files with recomputed rewards. If not provided, only displays metrics.",
     )
+    evaluate_parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Overwrite each input file with recomputed rewards (e.g. to add action_check mismatch_reason). Then re-run export_trajectories_for_pages.py to refresh docs/data.",
+    )
     evaluate_parser.set_defaults(func=lambda args: run_evaluate_trajectories(args))
 
     # Submit command with subcommands
@@ -391,7 +396,7 @@ def run_evaluate_trajectories(args):
 
     logger.configure(handlers=[{"sink": sys.stderr, "level": "ERROR"}])
 
-    evaluate_trajectories(args.paths, args.output_dir)
+    evaluate_trajectories(args.paths, args.output_dir, getattr(args, "in_place", False))
 
 
 def run_prepare_submission(args):
