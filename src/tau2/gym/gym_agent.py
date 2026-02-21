@@ -30,6 +30,7 @@ from tau2.evaluator.evaluator import EvaluationType, evaluate_simulation
 from tau2.orchestrator.orchestrator import Orchestrator
 from tau2.registry import registry
 from tau2.user.base import OUT_OF_SCOPE, STOP, TRANSFER, BaseUser, ValidUserInputMessage
+from tau2.user.tools import GLOBAL_USER_SIM_TOOLS
 from tau2.user.user_simulator import DummyUser, UserSimulator
 from tau2.utils.tools import parse_action_string, to_functional_format
 
@@ -987,7 +988,11 @@ class AgentGymEnv(gym.Env):
         """
         environment = self._get_environment()
         tools = environment.get_tools()
-        user_tools = environment.get_user_tools() if environment.user_tools else []
+        try:
+            domain_user_tools = environment.get_user_tools() if environment.user_tools else []
+        except Exception:
+            domain_user_tools = []
+        user_tools = GLOBAL_USER_SIM_TOOLS + domain_user_tools
         if self.solo_mode:
             tools = tools + user_tools
         return GymAgent(
@@ -1020,9 +1025,10 @@ class AgentGymEnv(gym.Env):
         environment = self._get_environment()
         task = self._get_task()
         try:
-            user_tools = environment.get_user_tools()
+            domain_user_tools = environment.get_user_tools()
         except ValueError:
-            user_tools = None
+            domain_user_tools = []
+        user_tools = GLOBAL_USER_SIM_TOOLS + domain_user_tools
         if self.solo_mode:
             user_simulator = DummyUser()
         else:
@@ -1484,9 +1490,10 @@ class UserGymEnv(gym.Env):
         environment = self._get_environment()
         task = self._get_task()
         try:
-            user_tools = environment.get_user_tools()
+            domain_user_tools = environment.get_user_tools()
         except ValueError:
-            user_tools = None
+            domain_user_tools = []
+        user_tools = GLOBAL_USER_SIM_TOOLS + domain_user_tools
         return GymUser(
             tools=user_tools,
             instructions=task.user_scenario,

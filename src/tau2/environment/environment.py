@@ -17,6 +17,10 @@ from tau2.data_model.tasks import EnvAssertion, EnvFunctionCall, InitializationD
 from tau2.environment.db import DB
 from tau2.environment.tool import Tool
 from tau2.environment.toolkit import ToolKitBase, ToolSignature, get_tool_signatures
+from tau2.user.tools import (
+    GLOBAL_USER_SIM_TOOL_FUNCS,
+    GLOBAL_USER_SIM_TOOL_NAMES,
+)
 
 
 class EnvironmentInfo(BaseModel):
@@ -396,6 +400,34 @@ class Environment:
             The response of the tool call.
         """
         error = False
+        # Global user sim tools (e.g. check_for_stop) are not in environment.user_tools;
+        # execute them here so set_state replay and domains without user_tools work.
+        if (
+            message.requestor == "user"
+            and message.name in GLOBAL_USER_SIM_TOOL_NAMES
+        ):
+            func = GLOBAL_USER_SIM_TOOL_FUNCS.get(message.name)
+            if func is not None:
+                try:
+                    resp = func(**message.arguments)
+                except Exception as e:
+                    resp = f"Error: {e}"
+                    error = True
+                else:
+                    error = False
+                logger.debug(f"Response: {resp}")
+                content = (
+                    resp
+                    if isinstance(resp, str)
+                    else self.to_json_str(resp)
+                )
+                return ToolMessage(
+                    id=message.id,
+                    content=content,
+                    requestor=message.requestor,
+                    role="tool",
+                    error=error,
+                )
         try:
             resp = self.make_tool_call(
                 message.name, requestor=message.requestor, **message.arguments

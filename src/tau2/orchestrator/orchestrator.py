@@ -13,6 +13,7 @@ from tau2.data_model.message import (
     AssistantMessage,
     Message,
     MultiToolMessage,
+    ToolCall,
     ToolMessage,
     UserMessage,
 )
@@ -20,6 +21,7 @@ from tau2.data_model.simulation import SimulationRun, TerminationReason
 from tau2.data_model.tasks import EnvFunctionCall, InitializationData, Task
 from tau2.environment.environment import Environment, EnvironmentInfo
 from tau2.user.base import BaseUser, UserError, is_valid_user_history_message
+from tau2.user.tools import GLOBAL_USER_SIM_TOOL_NAMES
 from tau2.user.user_simulator import DummyUser, UserSimulator, UserState
 from tau2.utils.llm_utils import get_cost
 from tau2.utils.utils import format_time, get_now
@@ -383,6 +385,38 @@ class Orchestrator:
                     f"{self.from_role.value} can only send tool calls. {self.message}"
                 )
 
+    def _get_tool_response(self, tool_call: ToolCall) -> ToolMessage:
+        """Get tool response, executing global user sim tools from user.tools or delegating to environment."""
+        if (
+            tool_call.requestor == "user"
+            and tool_call.name in GLOBAL_USER_SIM_TOOL_NAMES
+            and self.user.tools is not None
+        ):
+            tool = next(
+                (t for t in self.user.tools if t.name == tool_call.name),
+                None,
+            )
+            if tool is not None:
+                error = False
+                try:
+                    resp = tool(**tool_call.arguments)
+                except Exception as e:
+                    resp = f"Error: {e}"
+                    error = True
+                content = (
+                    resp
+                    if isinstance(resp, str)
+                    else Environment.to_json_str(resp)
+                )
+                return ToolMessage(
+                    id=tool_call.id,
+                    content=content,
+                    requestor=tool_call.requestor,
+                    role="tool",
+                    error=error,
+                )
+        return self.environment.get_response(tool_call)
+
     def run(self) -> SimulationRun:
         """
         Run the simulation.
@@ -505,7 +539,7 @@ class Orchestrator:
                 raise ValueError("Agent or User should send tool call to environment")
             tool_msgs = []
             for tool_call in self.message.tool_calls:
-                tool_msg = self.environment.get_response(tool_call)
+                tool_msg = self._get_tool_response(tool_call)
                 if tool_msg.error:
                     self.num_errors += 1
                 tool_msgs.append(tool_msg)

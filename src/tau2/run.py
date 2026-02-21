@@ -25,6 +25,7 @@ from tau2.environment.environment import Environment, EnvironmentInfo
 from tau2.evaluator.evaluator import EvaluationType, evaluate_simulation
 from tau2.gym.gym_agent import GymAgent
 from tau2.metrics.agent_metrics import compute_metrics, is_successful
+from tau2.user.tools import GLOBAL_USER_SIM_TOOLS
 
 
 def _set_span_display_name(span, name: str) -> None:
@@ -599,9 +600,10 @@ def run_task(
             f"Unknown agent type: {AgentConstructor}. Should be LLMAgent or LLMSoloAgent"
         )
     try:
-        user_tools = environment.get_user_tools()
+        domain_user_tools = environment.get_user_tools()
     except Exception:
-        user_tools = None
+        domain_user_tools = []
+    user_tools = GLOBAL_USER_SIM_TOOLS + domain_user_tools
 
     UserConstructor = registry.get_user_constructor(user)
     if issubclass(UserConstructor, DummyUser):
