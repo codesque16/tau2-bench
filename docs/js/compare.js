@@ -62,9 +62,20 @@
       actions.forEach(function (c) {
         var a = c.action || {};
         var match = c.action_match;
-        html += '<div class="action-check">' + '<span class="check-icon ' + (match ? "pass" : "fail") + '">' + (match ? "✓" : "✗") + "</span>" +
-          '<div class="check-detail"><div class="name">' + escapeHtml(a.name || "—") + "</div>" +
-          (a.arguments && Object.keys(a.arguments).length ? '<div class="args">' + escapeHtml(JSON.stringify(a.arguments, null, 2)) + "</div>" : "") + "</div></div>";
+        var detail = '<div class="check-detail"><div class="name">' + escapeHtml(a.name || "—") + "</div>" +
+          (a.arguments && Object.keys(a.arguments).length ? '<div class="args">Expected: ' + escapeHtml(JSON.stringify(a.arguments, null, 2)) + "</div>" : "");
+        if (!match && (c.mismatch_reason || c.actual_arguments != null)) {
+          if (c.mismatch_reason === "not_called") {
+            detail += '<div class="mismatch-reason">Tool was not called.</div>';
+          } else if (c.mismatch_reason === "arguments_mismatch" && c.actual_arguments != null) {
+            detail += '<div class="mismatch-reason">Same tool was called but arguments differ. Actual: </div>';
+            detail += '<div class="args actual-args">' + escapeHtml(JSON.stringify(c.actual_arguments, null, 2)) + "</div>";
+          } else if (c.mismatch_reason) {
+            detail += '<div class="mismatch-reason">' + escapeHtml(c.mismatch_reason) + "</div>";
+          }
+        }
+        detail += "</div>";
+        html += '<div class="action-check">' + '<span class="check-icon ' + (match ? "pass" : "fail") + '">' + (match ? "✓" : "✗") + "</span>" + detail + "</div>";
       });
       html += "</div>";
     }
