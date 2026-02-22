@@ -1,7 +1,7 @@
 """Toolkit for the retail domain."""
 
 import json
-from typing import List
+from typing import Iterable, List, Optional
 
 from tau2.domains.retail.data_model import (
     GiftCard,
@@ -14,8 +14,21 @@ from tau2.domains.retail.data_model import (
     UserAddress,
     Variant,
 )
-from tau2.domains.retail.utils import RETAIL_DB_PATH
+from tau2.domains.retail.utils import (
+    RETAIL_DB_PATH,
+    RETAIL_POLICY_CANCEL_PATH,
+    RETAIL_POLICY_EXCHANGE_PATH,
+    RETAIL_POLICY_MODIFY_PATH,
+    RETAIL_POLICY_RETURN_PATH,
+)
 from tau2.environment.toolkit import ToolKitBase, ToolType, is_tool
+
+
+# Tool names that can be disabled when using the original policy (policy text is inline).
+DISABLED_POLICY_FETCH_TOOLS = frozenset(
+    {"fetch_cancel_policy", "fetch_modify_policy", "fetch_return_policy", "fetch_exchange_policy",
+    "verify_cancel_policy", "verify_modify_policy", "verify_return_policy", "verify_exchange_policy"}
+)
 
 
 class RetailTools(ToolKitBase):  # Tools
@@ -23,8 +36,28 @@ class RetailTools(ToolKitBase):  # Tools
 
     db: RetailDB
 
-    def __init__(self, db: RetailDB) -> None:
+    def __init__(
+        self,
+        db: RetailDB,
+        excluded_tool_names: Optional[Iterable[str]] = None,
+    ) -> None:
         super().__init__(db)
+        self._excluded_tool_names = frozenset(excluded_tool_names or ())
+
+    @property
+    def tools(self):
+        """Tools available in this toolkit, excluding any in _excluded_tool_names."""
+        base = {name: getattr(self, name) for name in self._func_tools.keys()}
+        if not self._excluded_tool_names:
+            return base
+        return {
+            name: fn for name, fn in base.items() if name not in self._excluded_tool_names
+        }
+
+    def has_tool(self, tool_name: str) -> bool:
+        if tool_name in self._excluded_tool_names:
+            return False
+        return super().has_tool(tool_name)
 
     def _get_order(self, order_id: str) -> Order:
         """Get the order from the database.
@@ -118,6 +151,85 @@ class RetailTools(ToolKitBase):  # Tools
             order: The order.
         """
         return "pending" in order.status
+
+    # --- Policy fetch/verify tools (action rules delivered via tools instead of system prompt) ---
+
+    _VERIFY_INSTRUCTION = (
+        "\n\n---\n**VERIFICATION**: Before executing the corresponding action (e.g. cancel_pending_order, modify_*, return_*, exchange_*), "
+        "verify that your intended action is fully aligned with the instructions above. Proceed only if everything matches."
+    )
+
+    @is_tool(ToolType.READ)
+    def fetch_cancel_policy(self) -> str:
+        """Fetch the cancel-pending-order policy. Use this when the user wants to cancel an order, so you can follow the correct rules when conversing.
+
+        Returns:
+            The full cancel-pending-order policy text.
+        """
+        return RETAIL_POLICY_CANCEL_PATH.read_text()
+
+    @is_tool(ToolType.READ)
+    def verify_cancel_policy(self) -> str:
+        """Return the cancel-pending-order policy and a verification instruction. Call this immediately before executing cancel_pending_order to confirm your action is aligned with the policy.
+
+        Returns:
+            The cancel policy text plus a verification instruction.
+        """
+        return RETAIL_POLICY_CANCEL_PATH.read_text() + self._VERIFY_INSTRUCTION
+
+    @is_tool(ToolType.READ)
+    def fetch_modify_policy(self) -> str:
+        """Fetch the modify-pending-order policy (address, payment, items). Use this when the user wants to modify an order, so you can follow the correct rules when conversing.
+
+        Returns:
+            The full modify-pending-order policy text.
+        """
+        return RETAIL_POLICY_MODIFY_PATH.read_text()
+
+    @is_tool(ToolType.READ)
+    def verify_modify_policy(self) -> str:
+        """Return the modify-pending-order policy and a verification instruction. Call this immediately before executing any modify-pending-order action to confirm your action is aligned with the policy.
+
+        Returns:
+            The modify policy text plus a verification instruction.
+        """
+        return RETAIL_POLICY_MODIFY_PATH.read_text() + self._VERIFY_INSTRUCTION
+
+    @is_tool(ToolType.READ)
+    def fetch_return_policy(self) -> str:
+        """Fetch the return-delivered-order policy. Use this when the user wants to return items from a delivered order, so you can follow the correct rules when conversing.
+
+        Returns:
+            The full return-delivered-order policy text.
+        """
+        return RETAIL_POLICY_RETURN_PATH.read_text()
+
+    @is_tool(ToolType.READ)
+    def verify_return_policy(self) -> str:
+        """Return the return-delivered-order policy and a verification instruction. Call this immediately before executing return_delivered_order_items to confirm your action is aligned with the policy.
+
+        Returns:
+            The return policy text plus a verification instruction.
+        """
+        return RETAIL_POLICY_RETURN_PATH.read_text() + self._VERIFY_INSTRUCTION
+
+    @is_tool(ToolType.READ)
+    def fetch_exchange_policy(self) -> str:
+        """Fetch the exchange-delivered-order policy. Use this when the user wants to exchange items from a delivered order, so you can follow the correct rules when conversing.
+
+        Returns:
+            The full exchange-delivered-order policy text.
+        """
+        return RETAIL_POLICY_EXCHANGE_PATH.read_text()
+
+    @is_tool(ToolType.READ)
+    def verify_exchange_policy(self) -> str:
+        """Return the exchange-delivered-order policy and a verification instruction. Call this immediately before executing exchange_delivered_order_items to confirm your action is aligned with the policy.
+
+        Returns:
+            The exchange policy text plus a verification instruction.
+        """
+        return RETAIL_POLICY_EXCHANGE_PATH.read_text() + self._VERIFY_INSTRUCTION
 
     @is_tool(ToolType.GENERIC)
     def calculate(self, expression: str) -> str:

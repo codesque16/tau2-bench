@@ -3,7 +3,7 @@ import uuid
 from copy import deepcopy
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from loguru import logger
 
@@ -133,6 +133,9 @@ class Orchestrator:
         self.from_role: Optional[Role] = None
         self.to_role: Optional[Role] = None
         self.message: Optional[Message] = None
+        # When the user sends both text and tool call(s), we deliver text to agent first;
+        # the tool call(s) are stored here and injected after the agent responds.
+        self.pending_user_tool_calls: Optional[List[ToolCall]] = None
 
     def initialize(self):
         """
@@ -141,6 +144,7 @@ class Orchestrator:
         - Initialize the agent and user states.
         - Send the first message (default message from the agent to the user).
         """
+        self.pending_user_tool_calls = None
         initial_state = self.task.initial_state
         initialization_data = (
             initial_state.initialization_data if initial_state is not None else None
@@ -497,20 +501,50 @@ class Orchestrator:
         )
         # AGENT/ENV -> USER
         if self.from_role in [Role.AGENT, Role.ENV] and self.to_role == Role.USER:
-            user_msg, self.user_state = self.user.generate_next_message(
-                self.message, self.user_state
-            )
-            user_msg.validate()
-            if UserSimulator.is_stop(user_msg):
-                self.done = True
-                self.termination_reason = TerminationReason.USER_STOP
-            self.trajectory.append(user_msg)
-            self.message = user_msg
-            self.from_role = Role.USER
-            if user_msg.is_tool_call():
+            # If we have pending user tool calls (from a previous split), inject them now.
+            if self.pending_user_tool_calls:
+                tool_only_msg = UserMessage(
+                    role="user",
+                    content=None,
+                    tool_calls=self.pending_user_tool_calls,
+                )
+                self.pending_user_tool_calls = None
+                self.trajectory.append(tool_only_msg)
+                self.user_state.messages.append(tool_only_msg)
+                self.message = tool_only_msg
+                self.from_role = Role.USER
                 self.to_role = Role.ENV
             else:
-                self.to_role = Role.AGENT
+                user_msg, self.user_state = self.user.generate_next_message(
+                    self.message, self.user_state
+                )
+                user_msg.validate()
+                if UserSimulator.is_stop(user_msg):
+                    self.done = True
+                    self.termination_reason = TerminationReason.USER_STOP
+                if user_msg.has_text_content() and user_msg.is_tool_call():
+                    # Deliver text to agent first; process tool call(s) after agent responds.
+                    text_only_msg = UserMessage(
+                        role="user",
+                        content=user_msg.content,
+                        tool_calls=None,
+                        timestamp=user_msg.timestamp,
+                    )
+                    self.trajectory.append(text_only_msg)
+                    self.user_state.messages.pop()  # remove mixed message just appended
+                    self.user_state.messages.append(text_only_msg)
+                    self.pending_user_tool_calls = user_msg.tool_calls
+                    self.message = text_only_msg
+                    self.from_role = Role.USER
+                    self.to_role = Role.AGENT
+                else:
+                    self.trajectory.append(user_msg)
+                    self.message = user_msg
+                    self.from_role = Role.USER
+                    if user_msg.is_tool_call():
+                        self.to_role = Role.ENV
+                    else:
+                        self.to_role = Role.AGENT
         # USER/ENV -> AGENT
         elif (
             self.from_role == Role.USER or self.from_role == Role.ENV
