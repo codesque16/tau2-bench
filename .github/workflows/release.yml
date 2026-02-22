@@ -10,38 +10,18 @@ on:
 
 permissions:
   contents: write
+  issues: write
   pull-requests: write
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      - uses: google-github-actions/release-please-action@v4
+      - uses: googleapis/release-please-action@v4
         id: release
         with:
-          # The default release type for Python projects
+          token: ${{ secrets.GITHUB_TOKEN }}
           release-type: python
-          # Package name (should match your package name)
-          package-name: tau2
-          # Path to version file (pyproject.toml for Python)
-          version-file: pyproject.toml
-          # Include changelog in release notes
-          include-v-in-tag: true
-          # Custom changelog types for better categorization
-          changelog-types: |
-            [
-              {"type":"feat","section":"Added","hidden":false},
-              {"type":"fix","section":"Fixed","hidden":false},
-              {"type":"perf","section":"Performance","hidden":false},
-              {"type":"revert","section":"Reverted","hidden":false},
-              {"type":"docs","section":"Documentation","hidden":false},
-              {"type":"style","section":"Styling","hidden":true},
-              {"type":"chore","section":"Maintenance","hidden":true},
-              {"type":"refactor","section":"Refactoring","hidden":true},
-              {"type":"test","section":"Testing","hidden":true},
-              {"type":"build","section":"Build","hidden":true},
-              {"type":"ci","section":"CI/CD","hidden":true}
-            ]
 
       # Optional: Build and publish to PyPI when a release is created
       - uses: actions/checkout@v4
