@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Compare tasks – τ² Bench</title>
+  <title>Compare runs – τ² Bench</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -12,30 +12,64 @@
 <body class="page-compare">
   <header class="compare-header">
     <a href="index.html" class="back-link">← All tasks</a>
-    <h1 class="compare-title">Compare two tasks</h1>
+    <h1 class="compare-title">Compare two runs</h1>
   </header>
 
-  <div class="compare-split">
-    <div class="compare-panel" id="panel-left">
-      <div class="compare-panel-head">
-        <label>Run</label>
-        <select class="compare-run-select" id="run-left" aria-label="Run (left)"></select>
-        <label>Task</label>
-        <select class="compare-task-select" id="task-left" aria-label="Task (left)"></select>
+  <div class="compare-setup">
+    <div class="compare-run-picker">
+      <div class="compare-run-field">
+        <label for="run-1">Run 1</label>
+        <select class="compare-run-select" id="run-1" aria-label="Run 1"></select>
       </div>
-      <div class="compare-panel-body" id="body-left">
-        <p class="compare-placeholder">Select run and task.</p>
+      <div class="compare-run-field">
+        <label for="run-2">Run 2</label>
+        <select class="compare-run-select" id="run-2" aria-label="Run 2"></select>
       </div>
     </div>
-    <div class="compare-panel" id="panel-right">
-      <div class="compare-panel-head">
-        <label>Run</label>
-        <select class="compare-run-select" id="run-right" aria-label="Run (right)"></select>
-        <label>Task</label>
-        <select class="compare-task-select" id="task-right" aria-label="Task (right)"></select>
+    <p class="compare-domain-hint" id="domain-hint">Select two runs from the same domain to compare.</p>
+    <div class="compare-table-wrap" id="compare-table-wrap" style="display: none;">
+      <div class="compare-table-actions">
+        <label class="compare-diff-only">
+          <input type="checkbox" id="diff-only" />
+          Only show tasks where one run passed and one failed
+        </label>
       </div>
-      <div class="compare-panel-body" id="body-right">
-        <p class="compare-placeholder">Select run and task.</p>
+      <table class="compare-join-table" aria-label="Task comparison">
+        <thead>
+          <tr>
+            <th>Task ID</th>
+            <th id="th-run1">Run 1</th>
+            <th id="th-run2">Run 2</th>
+            <th>Compare</th>
+          </tr>
+        </thead>
+        <tbody id="compare-join-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="compare-detail-wrap" id="compare-detail-wrap" style="display: none;">
+    <div class="compare-detail-head">
+      <label>Task</label>
+      <select class="compare-task-select-single" id="task-select-single" aria-label="Task to compare"></select>
+      <span class="compare-detail-legend" id="compare-legend">Green = Run 2 passed, Red = Run 1 passed</span>
+    </div>
+    <div class="compare-split">
+      <div class="compare-panel compare-panel-left" id="panel-left">
+        <div class="compare-panel-head" id="head-left">
+          <span class="compare-panel-label">Run 1</span>
+        </div>
+        <div class="compare-panel-body" id="body-left">
+          <p class="compare-placeholder">Select task above.</p>
+        </div>
+      </div>
+      <div class="compare-panel compare-panel-right" id="panel-right">
+        <div class="compare-panel-head" id="head-right">
+          <span class="compare-panel-label">Run 2</span>
+        </div>
+        <div class="compare-panel-body" id="body-right">
+          <p class="compare-placeholder">Select task above.</p>
+        </div>
       </div>
     </div>
   </div>

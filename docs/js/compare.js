@@ -166,77 +166,53 @@
   }
 
   var runs = [];
-  var runSelectLeft = document.getElementById("run-left");
-  var runSelectRight = document.getElementById("run-right");
-  var taskSelectLeft = document.getElementById("task-left");
-  var taskSelectRight = document.getElementById("task-right");
+  var runSelect1 = document.getElementById("run-1");
+  var runSelect2 = document.getElementById("run-2");
+  var domainHint = document.getElementById("domain-hint");
+  var compareTableWrap = document.getElementById("compare-table-wrap");
+  var compareJoinTbody = document.getElementById("compare-join-tbody");
+  var thRun1 = document.getElementById("th-run1");
+  var thRun2 = document.getElementById("th-run2");
+  var diffOnlyCheckbox = document.getElementById("diff-only");
+  var compareDetailWrap = document.getElementById("compare-detail-wrap");
+  var taskSelectSingle = document.getElementById("task-select-single");
+  var panelLeft = document.getElementById("panel-left");
+  var panelRight = document.getElementById("panel-right");
+  var headLeft = document.getElementById("head-left");
+  var headRight = document.getElementById("head-right");
   var bodyLeft = document.getElementById("body-left");
   var bodyRight = document.getElementById("body-right");
 
-  function loadTaskList(runId, selectEl) {
-    selectEl.innerHTML = '<option value="">— Select task —</option>';
-    if (!runId) return;
-    fetch(getDataPath("data/" + runId + "/index.json"))
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) {
-        if (!data || !data.tasks) return;
-        data.tasks.forEach(function (t) {
-          var opt = document.createElement("option");
-          opt.value = t.task_id;
-          opt.textContent = "Task " + t.task_id + (t.reward === 1.0 ? " ✓" : " ✗");
-          selectEl.appendChild(opt);
-        });
-      });
-  }
+  var joinRows = [];
+  var run1Id = "";
+  var run2Id = "";
+  var run1Label = "";
+  var run2Label = "";
 
-  function loadTask(runId, taskId, bodyEl) {
-    if (!taskId) {
-      bodyEl.innerHTML = '<p class="compare-placeholder">Select run and task.</p>';
-      return;
+  function getRunById(id) {
+    for (var i = 0; i < runs.length; i++) {
+      if (runs[i].id === id) return runs[i];
     }
-    bodyEl.innerHTML = '<p class="loading">Loading…</p>';
-    var safeId = taskId.replace(/[^\w\-]/g, "_");
-    var url = runId
-      ? getDataPath("data/" + runId + "/task_" + safeId + ".json")
-      : getDataPath("data/task_" + safeId + ".json");
-    fetch(url)
-      .then(function (r) {
-        if (!r.ok) throw new Error("Task not found");
-        return r.json();
-      })
-      .then(function (data) {
-        bodyEl.innerHTML = renderPanelContent(data);
-      })
-      .catch(function () {
-        bodyEl.innerHTML = '<p class="error-msg">Failed to load task.</p>';
-      });
+    return null;
   }
 
-  runSelectLeft.addEventListener("change", function () {
-    var id = runSelectLeft.value;
-    loadTaskList(id, taskSelectLeft);
-    taskSelectLeft.value = "";
-    bodyLeft.innerHTML = '<p class="compare-placeholder">Select task.</p>';
-  });
-  runSelectRight.addEventListener("change", function () {
-    var id = runSelectRight.value;
-    loadTaskList(id, taskSelectRight);
-    taskSelectRight.value = "";
-    bodyRight.innerHTML = '<p class="compare-placeholder">Select task.</p>';
-  });
-  taskSelectLeft.addEventListener("change", function () {
-    loadTask(runSelectLeft.value, taskSelectLeft.value, bodyLeft);
-  });
-  taskSelectRight.addEventListener("change", function () {
-    loadTask(runSelectRight.value, taskSelectRight.value, bodyRight);
-  });
+  function getRunDomain(r) {
+    if (r && r.domain) return r.domain;
+    if (r && r.id) {
+      var parts = r.id.split("_");
+      if (parts.length >= 2) return parts[1];
+    }
+    return null;
+  }
 
-  function addRunOptions(sel) {
+  function addRunOptions(sel, filterDomain) {
+    sel.innerHTML = "";
     var empty = document.createElement("option");
     empty.value = "";
     empty.textContent = "\u2014 Select run \u2014";
     sel.appendChild(empty);
     runs.forEach(function (r) {
+      if (filterDomain != null && getRunDomain(r) !== filterDomain) return;
       var opt = document.createElement("option");
       opt.value = r.id;
       opt.textContent = r.label + " (" + (r.num_passed != null ? r.num_passed + "/" + r.num_tasks : r.num_tasks) + ")";
@@ -244,18 +220,207 @@
     });
   }
 
+  function loadIndex(runId) {
+    return fetch(getDataPath("data/" + runId + "/index.json"))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) { return data && data.tasks ? data.tasks : []; });
+  }
+
+  function buildJoin(tasks1, tasks2) {
+    var byId1 = {};
+    var byId2 = {};
+    var allIds = new Set();
+    tasks1.forEach(function (t) { byId1[t.task_id] = t; allIds.add(t.task_id); });
+    tasks2.forEach(function (t) { byId2[t.task_id] = t; allIds.add(t.task_id); });
+    var ids = Array.from(allIds).sort(function (a, b) {
+      var na = parseInt(a, 10);
+      var nb = parseInt(b, 10);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return String(a).localeCompare(String(b));
+    });
+    return ids.map(function (taskId) {
+      var t1 = byId1[taskId];
+      var t2 = byId2[taskId];
+      var r1 = t1 ? (t1.reward === 1.0 ? "pass" : "fail") : null;
+      var r2 = t2 ? (t2.reward === 1.0 ? "pass" : "fail") : null;
+      var isDiff = (r1 !== null && r2 !== null && r1 !== r2);
+      return { taskId: taskId, r1: r1, r2: r2, isDiff: isDiff };
+    });
+  }
+
+  function renderJoinTable() {
+    var diffOnly = diffOnlyCheckbox && diffOnlyCheckbox.checked;
+    thRun1.textContent = "Run 1" + (run1Label ? " (" + run1Label + ")" : "");
+    thRun2.textContent = "Run 2" + (run2Label ? " (" + run2Label + ")" : "");
+    compareJoinTbody.innerHTML = "";
+    joinRows.forEach(function (row) {
+      if (diffOnly && !row.isDiff) return;
+      var tr = document.createElement("tr");
+      var tdId = document.createElement("td");
+      tdId.className = "task-id";
+      tdId.textContent = row.taskId;
+      tr.appendChild(tdId);
+      var td1 = document.createElement("td");
+      if (row.r1 === "pass") {
+        td1.innerHTML = '<span class="reward-badge pass">Pass</span>';
+      } else if (row.r1 === "fail") {
+        td1.innerHTML = '<span class="reward-badge fail">Fail</span>';
+      } else {
+        td1.textContent = "NA";
+        td1.classList.add("compare-na");
+      }
+      tr.appendChild(td1);
+      var td2 = document.createElement("td");
+      if (row.r2 === "pass") {
+        td2.innerHTML = '<span class="reward-badge pass">Pass</span>';
+      } else if (row.r2 === "fail") {
+        td2.innerHTML = '<span class="reward-badge fail">Fail</span>';
+      } else {
+        td2.textContent = "NA";
+        td2.classList.add("compare-na");
+      }
+      tr.appendChild(td2);
+      var tdBtn = document.createElement("td");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "compare-row-btn";
+      btn.textContent = "Compare";
+      btn.dataset.taskId = row.taskId;
+      btn.addEventListener("click", function () {
+        openCompareTask(row.taskId);
+      });
+      tdBtn.appendChild(btn);
+      tr.appendChild(tdBtn);
+      compareJoinTbody.appendChild(tr);
+    });
+  }
+
+  function openCompareTask(taskId) {
+    compareDetailWrap.style.display = "block";
+    taskSelectSingle.value = taskId;
+    populateTaskDropdown();
+    loadBothTasks(taskId);
+    compareDetailWrap.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function populateTaskDropdown() {
+    taskSelectSingle.innerHTML = "";
+    var diffOnly = diffOnlyCheckbox && diffOnlyCheckbox.checked;
+    joinRows.forEach(function (row) {
+      if (diffOnly && !row.isDiff) return;
+      var opt = document.createElement("option");
+      opt.value = row.taskId;
+      opt.textContent = "Task " + row.taskId;
+      if (row.isDiff) {
+        opt.classList.add(row.r2 === "pass" ? "opt-right-won" : "opt-left-won");
+      }
+      taskSelectSingle.appendChild(opt);
+    });
+    if (taskSelectSingle.options.length) {
+      var cur = taskSelectSingle.value;
+      if (cur && Array.prototype.some.call(taskSelectSingle.options, function (o) { return o.value === cur; }))
+        taskSelectSingle.value = cur;
+      else
+        taskSelectSingle.selectedIndex = 0;
+    }
+  }
+
+  function loadBothTasks(taskId) {
+    if (!taskId) {
+      bodyLeft.innerHTML = '<p class="compare-placeholder">Select task above.</p>';
+      bodyRight.innerHTML = '<p class="compare-placeholder">Select task above.</p>';
+      panelLeft.classList.remove("compare-panel-fail", "compare-panel-pass");
+      panelRight.classList.remove("compare-panel-fail", "compare-panel-pass");
+      return;
+    }
+    var row = joinRows.filter(function (r) { return r.taskId === taskId; })[0];
+    if (row) {
+      panelLeft.classList.toggle("compare-panel-fail", row.r1 === "fail");
+      panelLeft.classList.toggle("compare-panel-pass", row.r1 === "pass");
+      panelRight.classList.toggle("compare-panel-fail", row.r2 === "fail");
+      panelRight.classList.toggle("compare-panel-pass", row.r2 === "pass");
+    }
+    headLeft.querySelector(".compare-panel-label").textContent = "Run 1" + (run1Label ? ": " + run1Label : "");
+    headRight.querySelector(".compare-panel-label").textContent = "Run 2" + (run2Label ? ": " + run2Label : "");
+
+    bodyLeft.innerHTML = '<p class="loading">Loading…</p>';
+    bodyRight.innerHTML = '<p class="loading">Loading…</p>';
+
+    var safeId = taskId.replace(/[^\w\-]/g, "_");
+    var url1 = run1Id ? getDataPath("data/" + run1Id + "/task_" + safeId + ".json") : null;
+    var url2 = run2Id ? getDataPath("data/" + run2Id + "/task_" + safeId + ".json") : null;
+
+    function loadOne(url, bodyEl) {
+      if (!url) {
+        bodyEl.innerHTML = '<p class="compare-placeholder">No data for this run.</p>';
+        return Promise.resolve();
+      }
+      return fetch(url)
+        .then(function (r) {
+          if (!r.ok) throw new Error("Task not found");
+          return r.json();
+        })
+        .then(function (data) {
+          bodyEl.innerHTML = renderPanelContent(data);
+        })
+        .catch(function () {
+          bodyEl.innerHTML = '<p class="error-msg">Failed to load task.</p>';
+        });
+    }
+
+    Promise.all([loadOne(url1, bodyLeft), loadOne(url2, bodyRight)]);
+  }
+
+  function onRun1Change() {
+    run1Id = runSelect1.value;
+    run2Id = "";
+    runSelect2.value = "";
+    var r1 = getRunById(run1Id);
+    addRunOptions(runSelect2, r1 ? r1.domain : null);
+    domainHint.textContent = r1
+      ? "Run 2 options are limited to the same domain (" + (getRunDomain(r1) || "unknown") + ")."
+      : "Select two runs from the same domain to compare.";
+    compareTableWrap.style.display = "none";
+    compareDetailWrap.style.display = "none";
+  }
+
+  function onRun2Change() {
+    run2Id = runSelect2.value;
+    if (!run1Id || !run2Id) {
+      compareTableWrap.style.display = "none";
+      compareDetailWrap.style.display = "none";
+      return;
+    }
+    var r1 = getRunById(run1Id);
+    var r2 = getRunById(run2Id);
+    run1Label = r1 ? r1.label : "";
+    run2Label = r2 ? r2.label : "";
+    domainHint.textContent = "Comparing runs from same domain. Select a task and click Compare to see details.";
+    Promise.all([loadIndex(run1Id), loadIndex(run2Id)]).then(function (res) {
+      joinRows = buildJoin(res[0], res[1]);
+      renderJoinTable();
+      compareTableWrap.style.display = "block";
+      populateTaskDropdown();
+    });
+  }
+
+  runSelect1.addEventListener("change", onRun1Change);
+  runSelect2.addEventListener("change", onRun2Change);
+  if (diffOnlyCheckbox) diffOnlyCheckbox.addEventListener("change", function () { renderJoinTable(); populateTaskDropdown(); });
+  taskSelectSingle.addEventListener("change", function () { loadBothTasks(taskSelectSingle.value); });
+
   fetch(getDataPath("data/runs.json"))
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (data) {
       if (!data || !data.runs || !data.runs.length) {
-        bodyLeft.innerHTML = '<p class="error-msg">No runs. Export trajectories first.</p>';
+        domainHint.textContent = "No runs. Export trajectories first.";
         return;
       }
       runs = data.runs;
-      addRunOptions(runSelectLeft);
-      addRunOptions(runSelectRight);
+      addRunOptions(runSelect1, null);
+      addRunOptions(runSelect2, null);
     })
     .catch(function () {
-      bodyLeft.innerHTML = '<p class="error-msg">Could not load runs. Serve the docs folder (e.g. with a local server) so data/runs.json can be loaded.</p>';
+      domainHint.textContent = "Could not load runs. Serve the docs folder (e.g. with a local server) so data/runs.json can be loaded.";
     });
 })();

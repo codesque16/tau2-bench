@@ -94,10 +94,25 @@ def export_one(sim_path: Path, out_dir: Path) -> dict:
     num_tasks = len(index)
     accuracy = round(100.0 * num_passed / num_tasks, 1) if num_tasks else 0
 
+    # Domain from simulation info or parse from run_id (e.g. ..._retail_llm_... -> retail)
+    run_id = run_id_from_path(sim_path)
+    domain = None
+    try:
+        env_info = (data.get("info") or {}).get("environment_info")
+        if isinstance(env_info, dict):
+            domain = env_info.get("domain_name")
+    except Exception:
+        pass
+    if not domain and run_id:
+        parts = run_id.split("_")
+        if len(parts) >= 2:
+            domain = parts[1]
+
     with open(out_dir / "index.json", "w") as f:
         json.dump({"tasks": index, "run_timestamp": data.get("timestamp")}, f, indent=2)
 
     return {
+        "domain": domain,
         "num_tasks": num_tasks,
         "num_passed": num_passed,
         "accuracy": accuracy,
@@ -140,6 +155,7 @@ def main():
             runs.append({
                 "id": run_id,
                 "label": label_from_path(sim_path),
+                "domain": info.get("domain"),
                 "timestamp": info.get("run_timestamp"),
                 "num_tasks": info["num_tasks"],
                 "num_passed": info.get("num_passed", 0),
