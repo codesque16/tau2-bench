@@ -132,6 +132,11 @@ def main():
         nargs="*",
         help="Simulation JSON paths; if omitted, all data/simulations/*.json are used",
     )
+    parser.add_argument(
+        "--add",
+        action="store_true",
+        help="Merge new runs into existing runs.json instead of replacing (only with explicit simulation paths)",
+    )
     args = parser.parse_args()
 
     if args.simulations:
@@ -143,16 +148,29 @@ def main():
         print("No simulation files found. Pass paths or add JSON files to data/simulations/")
         return
 
-    runs = []
+    existing_runs = []
+    existing_ids = set()
+    if args.add:
+        runs_file = data_root / "runs.json"
+        if runs_file.exists():
+            with open(runs_file) as f:
+                data = json.load(f)
+            existing_runs = data.get("runs") or []
+            existing_ids = {r["id"] for r in existing_runs}
+
+    runs = [] if not args.add else list(existing_runs)
     for sim_path in sim_paths:
         if not sim_path.exists():
             print(f"Skip (not found): {sim_path}")
             continue
         run_id = run_id_from_path(sim_path)
+        if args.add and run_id in existing_ids:
+            print(f"Skip (already in viewer): {sim_path.name}")
+            continue
         out_dir = data_root / run_id
         try:
             info = export_one(sim_path, out_dir)
-            runs.append({
+            run_entry = {
                 "id": run_id,
                 "label": label_from_path(sim_path),
                 "domain": info.get("domain"),
@@ -160,7 +178,10 @@ def main():
                 "num_tasks": info["num_tasks"],
                 "num_passed": info.get("num_passed", 0),
                 "accuracy": info.get("accuracy", 0),
-            })
+            }
+            runs.append(run_entry)
+            if args.add:
+                existing_ids.add(run_id)
             print(f"Exported {info['num_tasks']} tasks → docs/data/{run_id}/")
         except Exception as e:
             print(f"Error exporting {sim_path}: {e}")

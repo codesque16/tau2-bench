@@ -1,0 +1,792 @@
+{
+  "task_id": "10",
+  "task": {
+    "id": "10",
+    "description": {
+      "purpose": null,
+      "relevant_policies": null,
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "domain": "retail",
+        "reason_for_call": "For some reason, you want to return all things ordered. You have two payment methods and two orders, and you want to refund each order to the other order's payment method. If not possible, you are angry and swear for a few times, then ask for human representative.",
+        "known_info": "You are mia_garcia_4516 (mia.garcia2723@example.com).",
+        "unknown_info": null,
+        "task_instructions": "You are a mysterious person and do not want to reveal much about yourself or speak too many words at the same time."
+      }
+    },
+    "ticket": null,
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "10_0",
+          "requestor": "assistant",
+          "name": "find_user_id_by_email",
+          "arguments": {
+            "email": "mia.garcia2723@example.com"
+          },
+          "info": null,
+          "compare_args": null
+        },
+        {
+          "action_id": "10_1",
+          "requestor": "assistant",
+          "name": "get_user_details",
+          "arguments": {
+            "user_id": "mia_garcia_4516"
+          },
+          "info": null,
+          "compare_args": null
+        },
+        {
+          "action_id": "10_2",
+          "requestor": "assistant",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#W5490111"
+          },
+          "info": null,
+          "compare_args": null
+        },
+        {
+          "action_id": "10_3",
+          "requestor": "assistant",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#W7387996"
+          },
+          "info": null,
+          "compare_args": null
+        },
+        {
+          "action_id": "10_4",
+          "requestor": "assistant",
+          "name": "transfer_to_human_agents",
+          "arguments": {
+            "summary": "The user wants to refund each order to the opposite order's payment method, but the agent cannot help."
+          },
+          "info": null,
+          "compare_args": null
+        }
+      ],
+      "env_assertions": null,
+      "communicate_info": [],
+      "nl_assertions": null,
+      "reward_basis": [
+        "DB",
+        "COMMUNICATE"
+      ]
+    }
+  },
+  "run_info": {
+    "simulation_id": "481f9934-609d-4e06-8851-31bd44038166",
+    "timestamp": "2026-02-22T13:33:51.413858",
+    "duration_sec": 12.31,
+    "termination_reason": "user_stop",
+    "agent_cost": null,
+    "user_cost": null
+  },
+  "reward_info": {
+    "reward": 1.0,
+    "db_check": {
+      "db_match": true,
+      "db_reward": 1.0
+    },
+    "env_assertions": [],
+    "action_checks": [
+      {
+        "action": {
+          "action_id": "10_0",
+          "requestor": "assistant",
+          "name": "find_user_id_by_email",
+          "arguments": {
+            "email": "mia.garcia2723@example.com"
+          },
+          "info": null,
+          "compare_args": null
+        },
+        "action_match": true,
+        "action_reward": 1.0,
+        "mismatch_reason": null,
+        "actual_arguments": null
+      },
+      {
+        "action": {
+          "action_id": "10_1",
+          "requestor": "assistant",
+          "name": "get_user_details",
+          "arguments": {
+            "user_id": "mia_garcia_4516"
+          },
+          "info": null,
+          "compare_args": null
+        },
+        "action_match": false,
+        "action_reward": 0.0,
+        "mismatch_reason": "not_called",
+        "actual_arguments": null
+      },
+      {
+        "action": {
+          "action_id": "10_2",
+          "requestor": "assistant",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#W5490111"
+          },
+          "info": null,
+          "compare_args": null
+        },
+        "action_match": false,
+        "action_reward": 0.0,
+        "mismatch_reason": "not_called",
+        "actual_arguments": null
+      },
+      {
+        "action": {
+          "action_id": "10_3",
+          "requestor": "assistant",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#W7387996"
+          },
+          "info": null,
+          "compare_args": null
+        },
+        "action_match": false,
+        "action_reward": 0.0,
+        "mismatch_reason": "not_called",
+        "actual_arguments": null
+      },
+      {
+        "action": {
+          "action_id": "10_4",
+          "requestor": "assistant",
+          "name": "transfer_to_human_agents",
+          "arguments": {
+            "summary": "The user wants to refund each order to the opposite order's payment method, but the agent cannot help."
+          },
+          "info": null,
+          "compare_args": null
+        },
+        "action_match": false,
+        "action_reward": 0.0,
+        "mismatch_reason": "arguments_mismatch",
+        "actual_arguments": {
+          "summary": "User wants to return two orders and refund each order to the other order's payment method, which is against policy. User is upset and requests to speak to a human representative."
+        }
+      }
+    ],
+    "nl_assertions": null,
+    "communicate_checks": null,
+    "reward_basis": [
+      "DB",
+      "COMMUNICATE"
+    ],
+    "reward_breakdown": {
+      "DB": 1.0,
+      "COMMUNICATE": 1.0
+    },
+    "info": {
+      "env": null,
+      "nl": null,
+      "communicate": {
+        "note": "No communicate_info to evaluate"
+      },
+      "action": null
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Hi! How can I help you today?",
+      "tool_calls": null,
+      "turn_idx": 0,
+      "timestamp": "2026-02-22T13:33:39.103843",
+      "cost": 0.0,
+      "usage": null,
+      "raw_data": null
+    },
+    {
+      "role": "user",
+      "content": "I want to return all my orders. I have two orders and two payment methods. I want to refund each order to the other order's payment method. Can you do that?",
+      "tool_calls": null,
+      "turn_idx": 1,
+      "timestamp": "2026-02-22T13:33:39.999617",
+      "cost": 0.0003892,
+      "usage": {
+        "completion_tokens": 37,
+        "prompt_tokens": 825,
+        "total_tokens": 862,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "I want to return all my orders. I have two orders and two payment methods. I want to refund each order to the other order's payment method. Can you do that?",
+          "role": "assistant",
+          "tool_calls": null,
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "To assist you with returning your orders and refunding each order to the other order's payment method, I need to authenticate your identity first.\n\nCould you please provide your email address or your first name, last name, and zip code?",
+      "tool_calls": null,
+      "turn_idx": 2,
+      "timestamp": "2026-02-22T13:33:40.909600",
+      "cost": 0.0006448,
+      "usage": {
+        "completion_tokens": 48,
+        "prompt_tokens": 3532,
+        "total_tokens": 3580,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2816
+        },
+        "cache_read_tokens": 2816,
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "To assist you with returning your orders and refunding each order to the other order's payment method, I need to authenticate your identity first.\n\nCould you please provide your email address or your first name, last name, and zip code?",
+          "role": "assistant",
+          "tool_calls": null,
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "role": "user",
+      "content": "My email is mia.garcia2723@example.com.",
+      "tool_calls": null,
+      "turn_idx": 3,
+      "timestamp": "2026-02-22T13:33:41.612797",
+      "cost": 0.0003872,
+      "usage": {
+        "completion_tokens": 13,
+        "prompt_tokens": 916,
+        "total_tokens": 929,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "My email is mia.garcia2723@example.com.",
+          "role": "assistant",
+          "tool_calls": null,
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_GtzbHzeJUEPpWCHUNDX7IPAJ",
+          "name": "find_user_id_by_email",
+          "arguments": {
+            "email": "mia.garcia2723@example.com"
+          },
+          "requestor": "assistant"
+        }
+      ],
+      "turn_idx": 4,
+      "timestamp": "2026-02-22T13:33:42.410157",
+      "cost": 0.0006331999999999999,
+      "usage": {
+        "completion_tokens": 24,
+        "prompt_tokens": 3599,
+        "total_tokens": 3623,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2816
+        },
+        "cache_read_tokens": 2816,
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "tool_calls",
+        "index": 0,
+        "message": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "function": {
+                "arguments": "{\"email\":\"mia.garcia2723@example.com\"}",
+                "name": "find_user_id_by_email"
+              },
+              "id": "call_GtzbHzeJUEPpWCHUNDX7IPAJ",
+              "type": "function"
+            }
+          ],
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "id": "call_GtzbHzeJUEPpWCHUNDX7IPAJ",
+      "role": "tool",
+      "content": "mia_garcia_4516",
+      "requestor": "assistant",
+      "error": false,
+      "turn_idx": 5,
+      "timestamp": "2026-02-22T13:33:42.410501"
+    },
+    {
+      "role": "assistant",
+      "content": "Thank you, Mia. I have identified your user profile. To proceed with the returns and refunds, could you please provide the order IDs of the two orders you want to return? Also, please confirm the payment methods you want to use for the refunds for each order.",
+      "tool_calls": null,
+      "turn_idx": 6,
+      "timestamp": "2026-02-22T13:33:43.520258",
+      "cost": 0.0006996,
+      "usage": {
+        "completion_tokens": 55,
+        "prompt_tokens": 3641,
+        "total_tokens": 3696,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2816
+        },
+        "cache_read_tokens": 2816,
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "Thank you, Mia. I have identified your user profile. To proceed with the returns and refunds, could you please provide the order IDs of the two orders you want to return? Also, please confirm the payment methods you want to use for the refunds for each order.",
+          "role": "assistant",
+          "tool_calls": null,
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "role": "user",
+      "content": "I have two orders. I want to refund order 1 to the payment method of order 2, and refund order 2 to the payment method of order 1.",
+      "tool_calls": null,
+      "turn_idx": 7,
+      "timestamp": "2026-02-22T13:33:44.725560",
+      "cost": null,
+      "usage": null,
+      "raw_data": null
+    },
+    {
+      "role": "assistant",
+      "content": "Please provide me with the order IDs of the two orders and the payment method IDs associated with each order. This information is necessary to proceed with the return and refund process as you requested.",
+      "tool_calls": null,
+      "turn_idx": 8,
+      "timestamp": "2026-02-22T13:33:45.633649",
+      "cost": 0.0005191999999999999,
+      "usage": {
+        "completion_tokens": 38,
+        "prompt_tokens": 3738,
+        "total_tokens": 3776,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 3456
+        },
+        "cache_read_tokens": 3456,
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "Please provide me with the order IDs of the two orders and the payment method IDs associated with each order. This information is necessary to proceed with the return and refund process as you requested.",
+          "role": "assistant",
+          "tool_calls": null,
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "role": "user",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_y7mQLNUtFSNvCmgkXtFwqIbr",
+          "name": "check_for_stop",
+          "arguments": {},
+          "requestor": "user"
+        }
+      ],
+      "turn_idx": 9,
+      "timestamp": "2026-02-22T13:33:45.633755",
+      "cost": null,
+      "usage": null,
+      "raw_data": null
+    },
+    {
+      "id": "call_y7mQLNUtFSNvCmgkXtFwqIbr",
+      "role": "tool",
+      "content": "Verify the following before outputting ###STOP###:\n\n1. GOAL SATISFIED: The scenario instruction goal is fully satisfied (the customer's request has been completed as specified in your scenario).\n\n2. NO PENDING EXECUTION: The agent has no pending action to perform. If the agent said they would do something (e.g. cancel an order, process a return), wait until they have confirmed it is done or you have seen the outcome. Do not stop while the agent might still be about to execute something.\n\n3. CORRECT TERMINATION TYPE: You are ending because the task is complete. If you are being transferred to a human, use ###TRANSFER### instead. If the scenario does not provide enough information to continue, use ###OUT-OF-SCOPE### instead.\n\nOnly if all checks pass, output ###STOP### in your next message. If any check fails, continue the conversation (e.g. thank the agent and wait, or ask for confirmation).",
+      "requestor": "user",
+      "error": false,
+      "turn_idx": 10,
+      "timestamp": "2026-02-22T13:33:45.633825"
+    },
+    {
+      "role": "user",
+      "content": "I want to make sure you understand: refund order 1 to the payment method used in order 2, and refund order 2 to the payment method used in order 1. Can you do that? If not, tell me now.",
+      "tool_calls": null,
+      "turn_idx": 11,
+      "timestamp": "2026-02-22T13:33:46.489415",
+      "cost": 0.000578,
+      "usage": {
+        "completion_tokens": 50,
+        "prompt_tokens": 1245,
+        "total_tokens": 1295,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "I want to make sure you understand: refund order 1 to the payment method used in order 2, and refund order 2 to the payment method used in order 1. Can you do that? If not, tell me now.",
+          "role": "assistant",
+          "tool_calls": null,
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "I understand your request: you want to return both orders and have the refund for order 1 go to the payment method used in order 2, and the refund for order 2 go to the payment method used in order 1.\n\nHowever, according to the policy, the refund for a returned order must go either to the original payment method used for that order or to an existing gift card. Refunding to the payment method of a different order is not allowed.\n\nIf you want, I can help you return the orders with refunds going to their original payment methods or to a gift card if you have one. Please let me know how you would like to proceed.",
+      "tool_calls": null,
+      "turn_idx": 12,
+      "timestamp": "2026-02-22T13:33:48.242289",
+      "cost": 0.0009040000000000001,
+      "usage": {
+        "completion_tokens": 135,
+        "prompt_tokens": 3832,
+        "total_tokens": 3967,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2816
+        },
+        "cache_read_tokens": 2816,
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "I understand your request: you want to return both orders and have the refund for order 1 go to the payment method used in order 2, and the refund for order 2 go to the payment method used in order 1.\n\nHowever, according to the policy, the refund for a returned order must go either to the original payment method used for that order or to an existing gift card. Refunding to the payment method of a different order is not allowed.\n\nIf you want, I can help you return the orders with refunds going to their original payment methods or to a gift card if you have one. Please let me know how you would like to proceed.",
+          "role": "assistant",
+          "tool_calls": null,
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "role": "user",
+      "content": "This is ridiculous! Why the hell can't you do that? It's my money, damn it! What kind of stupid policy is this? I want to speak to a human representative right now!",
+      "tool_calls": null,
+      "turn_idx": 13,
+      "timestamp": "2026-02-22T13:33:49.182715",
+      "cost": 0.0006368,
+      "usage": {
+        "completion_tokens": 39,
+        "prompt_tokens": 1436,
+        "total_tokens": 1475,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "This is ridiculous! Why the hell can't you do that? It's my money, damn it! What kind of stupid policy is this? I want to speak to a human representative right now!",
+          "role": "assistant",
+          "tool_calls": null,
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_aWlYR6lUmI2lZBRUPdwkMKL0",
+          "name": "transfer_to_human_agents",
+          "arguments": {
+            "summary": "User wants to return two orders and refund each order to the other order's payment method, which is against policy. User is upset and requests to speak to a human representative."
+          },
+          "requestor": "assistant"
+        }
+      ],
+      "turn_idx": 14,
+      "timestamp": "2026-02-22T13:33:50.155602",
+      "cost": 0.0005344,
+      "usage": {
+        "completion_tokens": 51,
+        "prompt_tokens": 4012,
+        "total_tokens": 4063,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 3840
+        },
+        "cache_read_tokens": 3840,
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "tool_calls",
+        "index": 0,
+        "message": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "function": {
+                "arguments": "{\"summary\":\"User wants to return two orders and refund each order to the other order's payment method, which is against policy. User is upset and requests to speak to a human representative.\"}",
+                "name": "transfer_to_human_agents"
+              },
+              "id": "call_aWlYR6lUmI2lZBRUPdwkMKL0",
+              "type": "function"
+            }
+          ],
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "id": "call_aWlYR6lUmI2lZBRUPdwkMKL0",
+      "role": "tool",
+      "content": "Transfer successful",
+      "requestor": "assistant",
+      "error": false,
+      "turn_idx": 15,
+      "timestamp": "2026-02-22T13:33:50.155768"
+    },
+    {
+      "role": "assistant",
+      "content": "YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.",
+      "tool_calls": null,
+      "turn_idx": 16,
+      "timestamp": "2026-02-22T13:33:50.818209",
+      "cost": 0.0004688,
+      "usage": {
+        "completion_tokens": 18,
+        "prompt_tokens": 4076,
+        "total_tokens": 4094,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 3968
+        },
+        "cache_read_tokens": 3968,
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.",
+          "role": "assistant",
+          "tool_calls": null,
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    },
+    {
+      "role": "user",
+      "content": "###TRANSFER###",
+      "tool_calls": null,
+      "turn_idx": 17,
+      "timestamp": "2026-02-22T13:33:51.411905",
+      "cost": 0.0001836,
+      "usage": {
+        "completion_tokens": 4,
+        "prompt_tokens": 1499,
+        "total_tokens": 1503,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1408
+        },
+        "cache_read_tokens": 1408,
+        "reasoning_tokens": 0,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning": 0
+        }
+      },
+      "raw_data": {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "content": "###TRANSFER###",
+          "role": "assistant",
+          "tool_calls": null,
+          "function_call": null,
+          "provider_specific_fields": {
+            "refusal": null
+          },
+          "annotations": []
+        },
+        "provider_specific_fields": {}
+      }
+    }
+  ]
+}
