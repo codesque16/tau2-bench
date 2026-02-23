@@ -24,88 +24,101 @@ Statuses: `pending` | `processed` | `delivered` | `cancelled`
 
 ## SOP Flowchart
 
+Legend: `([stadium])` = start/end, `[rectangle]` = action/collect info, `{rhombus}` = decision, `[/parallelogram/]` = guardrail/reminder/tool call — prefixed with REMINDER: or TOOLS:. **Bold** = required input, *italic* = optional.
+
+**Execution:** Track your position as a path of node IDs, e.g. `START → AUTH → ROUTE → CHK_CANCEL → IS_PENDING_C`. Before each action, confirm your current node and follow its outgoing edges.
+
 ```mermaid
 flowchart TD
-    START([User contacts Agent]) --> AUTH["`Authenticate user identity via:
-    1. **email**, OR
-    2. **name** + **zip code**
-    Must verify even if user provides user_id`"]
-
-    AUTH --> ROUTE{User intent?}
+    START([User contacts Agent]) --> AUTH["`Authenticate user via **email** OR **name + zip code**`"]
+    AUTH --> AUTH_WARN[/REMINDER: Must verify even if user provides user_id. TOOLS: find_user_id_by_email, find_user_id_by_name_zip/]
+    AUTH_WARN --> ROUTE{User intent?}
 
     %% --- Info requests ---
-    ROUTE -->|info request| INFO[Provide order / product / profile information]
+    ROUTE -->|info request| INFO[/TOOLS: get_order_details, get_product_details, get_user_details, list_all_product_types/]
     INFO --> END_INFO([End / Restart])
 
     %% --- Cancel ---
-    ROUTE -->|cancel order| CHK_CANCEL{order.status == pending?}
-    CHK_CANCEL -->|no| DENY_CANCEL([DENY: Only pending orders can be cancelled])
-    CHK_CANCEL -->|yes| COLLECT_CANCEL["`Collect and confirm:
+    ROUTE -->|cancel order| CHK_CANCEL[/TOOLS: get_order_details/]
+    CHK_CANCEL --> IS_PENDING_C{order.status == pending?}
+    IS_PENDING_C -->|no| DENY_CANCEL([DENY: Only pending orders can be cancelled])
+    IS_PENDING_C -->|yes| COLLECT_CANCEL["`Collect and confirm:
     1. **order_id**
     2. **reason**: 'no longer needed' OR 'ordered by mistake'`"]
-    COLLECT_CANCEL --> CONFIRM_CANCEL[/Only these two reasons are acceptable/]
-    CONFIRM_CANCEL --> DO_CANCEL[Cancel order and initiate refund]
-    DO_CANCEL --> REFUND_CANCEL[/Gift card: immediate refund. Other methods: 5–7 business days/]
+    COLLECT_CANCEL --> WARN_CANCEL[/REMINDER: Only these two reasons are acceptable/]
+    WARN_CANCEL --> DO_CANCEL[/TOOLS: cancel_pending_order/]
+    DO_CANCEL --> REFUND_CANCEL[/REMINDER: Gift card = immediate refund, others = 5–7 business days/]
     REFUND_CANCEL --> END_CANCEL([End / Restart])
 
     %% --- Modify pending order ---
-    ROUTE -->|modify order| CHK_MOD{order.status == pending?}
-    CHK_MOD -->|no| DENY_MOD([DENY: Only pending orders can be modified])
-    CHK_MOD -->|yes| MOD_TYPE{What to modify?}
+    ROUTE -->|modify order| CHK_MOD[/TOOLS: get_order_details/]
+    CHK_MOD --> IS_PENDING_M{order.status == pending?}
+    IS_PENDING_M -->|no| DENY_MOD([DENY: Only pending orders can be modified])
+    IS_PENDING_M -->|yes| MOD_TYPE{What to modify?}
 
     %% Modify address
     MOD_TYPE -->|address| MOD_ADDR["`Collect:
     1. **order_id**
     2. **new address**`"]
-    MOD_ADDR --> CONFIRM_ADDR[Confirm details with user and update address]
-    CONFIRM_ADDR --> END_MOD([End / Restart])
+    MOD_ADDR --> DO_MOD_ADDR[/TOOLS: modify_pending_order_address/]
+    DO_MOD_ADDR --> END_MOD([End / Restart])
 
     %% Modify payment
     MOD_TYPE -->|payment method| MOD_PAY["`Collect:
     1. **order_id**
-    2. **new payment method** (must differ from original)`"]
+    2. **new payment method** — must differ from original`"]
     MOD_PAY --> CHK_GC_PAY{New method is gift card?}
     CHK_GC_PAY -->|yes, balance insufficient| DENY_PAY([DENY: Gift card balance insufficient])
-    CHK_GC_PAY -->|no, or balance sufficient| CONFIRM_PAY[Confirm details with user and update payment]
-    CONFIRM_PAY --> REFUND_PAY[/Original method refund: gift card immediate, others 5–7 days/]
+    CHK_GC_PAY -->|no, or balance sufficient| DO_MOD_PAY[/TOOLS: modify_pending_order_payment/]
+    DO_MOD_PAY --> REFUND_PAY[/REMINDER: Original method refund — gift card immediate, others 5–7 days/]
     REFUND_PAY --> END_MOD
 
     %% Modify items
     MOD_TYPE -->|items| MOD_ITEMS["`Collect ALL items to modify at once:
     1. **order_id**
     2. **list of item_id → new_item_id**
-    Each new item must be same product type, different option, and available`"]
-    MOD_ITEMS --> MOD_ITEMS_WARN[/"This action can only be called ONCE. Order becomes 'pending (items modified)' — no further modify or cancel. Remind user to confirm ALL items before proceeding"/]
+    Same product type, different option, must be available`"]
+    MOD_ITEMS --> MOD_ITEMS_WARN[/REMINDER: ONCE ONLY — order becomes "pending items modified", no further modify or cancel. Remind user to confirm ALL items./]
     MOD_ITEMS_WARN --> MOD_ITEMS_PAY["`Collect:
     1. **payment method** for price difference
-    If gift card, must cover difference`"]
-    MOD_ITEMS_PAY --> CONFIRM_ITEMS[Confirm all details with user and modify items]
-    CONFIRM_ITEMS --> END_MOD
+    Gift card must cover difference`"]
+    MOD_ITEMS_PAY --> DO_MOD_ITEMS[/TOOLS: modify_pending_order_items/]
+    DO_MOD_ITEMS --> END_MOD
 
     %% --- Return ---
-    ROUTE -->|return order| CHK_RET{order.status == delivered?}
-    CHK_RET -->|no| DENY_RET([DENY: Only delivered orders can be returned])
-    CHK_RET -->|yes| COLLECT_RET["`Collect:
+    ROUTE -->|return order| CHK_RET[/TOOLS: get_order_details/]
+    CHK_RET --> IS_DELIVERED_R{order.status == delivered?}
+    IS_DELIVERED_R -->|no| DENY_RET([DENY: Only delivered orders can be returned])
+    IS_DELIVERED_R -->|yes| COLLECT_RET["`Collect:
     1. **order_id**
     2. **list of items to return**
     3. **refund payment method**: original method OR existing gift card`"]
-    COLLECT_RET --> CONFIRM_RET[Confirm details with user and process return]
-    CONFIRM_RET --> END_RET([Return requested — user receives email with return instructions])
+    COLLECT_RET --> DO_RET[/TOOLS: return_delivered_order_items/]
+    DO_RET --> END_RET([Return requested — user receives email with return instructions])
 
     %% --- Exchange ---
-    ROUTE -->|exchange order| CHK_EXCH{order.status == delivered?}
-    CHK_EXCH -->|no| DENY_EXCH([DENY: Only delivered orders can be exchanged])
-    CHK_EXCH -->|yes| COLLECT_EXCH["`Collect ALL items to exchange at once:
+    ROUTE -->|exchange order| CHK_EXCH[/TOOLS: get_order_details/]
+    CHK_EXCH --> IS_DELIVERED_E{order.status == delivered?}
+    IS_DELIVERED_E -->|no| DENY_EXCH([DENY: Only delivered orders can be exchanged])
+    IS_DELIVERED_E -->|yes| COLLECT_EXCH["`Collect ALL items to exchange at once:
     1. **order_id**
     2. **list of item_id → new_item_id**
-    Each new item must be same product type, different option, and available`"]
-    COLLECT_EXCH --> EXCH_WARN[/Remind user to confirm ALL items before proceeding. No new order needed./]
+    Same product type, different option, must be available`"]
+    COLLECT_EXCH --> EXCH_WARN[/REMINDER: Remind user to confirm ALL items. No new order needed./]
     EXCH_WARN --> EXCH_PAY["`Collect:
     1. **payment method** for price difference
-    If gift card, must cover difference`"]
-    EXCH_PAY --> CONFIRM_EXCH[Confirm all details with user and process exchange]
-    CONFIRM_EXCH --> END_EXCH([Exchange requested — user receives email with return instructions])
+    Gift card must cover difference`"]
+    EXCH_PAY --> DO_EXCH[/TOOLS: exchange_delivered_order_items/]
+    DO_EXCH --> END_EXCH([Exchange requested — user receives email with return instructions])
+
+    %% --- Modify user address ---
+    ROUTE -->|modify default address| MOD_USER_ADDR["`Collect:
+    1. **user_id**
+    2. **new address**`"]
+    MOD_USER_ADDR --> DO_USER_ADDR[/TOOLS: modify_user_address/]
+    DO_USER_ADDR --> END_UADDR([End / Restart])
 
     %% --- Fallback ---
-    ROUTE -.->|out of scope| TRANSFER([Transfer to human agent + send hold message])
+    ROUTE -.->|out of scope| TRANSFER[/TOOLS: transfer_to_human_agents/]
+    TRANSFER --> END_TRANSFER([Send: 'YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.'])
 ```
