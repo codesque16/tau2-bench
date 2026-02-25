@@ -22,6 +22,10 @@ from tau2.user.tools import (
     GLOBAL_USER_SIM_TOOL_NAMES,
 )
 
+# MCP SOP tools (goto_node, todo, load_graph) are executed by the agent, not the domain env.
+# When replaying message_history in set_state, skip these so we don't call get_response on them.
+MCP_TOOL_NAMES = frozenset({"goto_node", "todo", "load_graph"})
+
 
 class EnvironmentInfo(BaseModel):
     """
@@ -323,6 +327,8 @@ class Environment:
 
         action_responses = get_actions_from_messages(message_history)
         for tool_call, expected_response in action_responses:
+            if tool_call.name in MCP_TOOL_NAMES:
+                continue
             response = self.get_response(tool_call)
             try:
                 content = json.loads(response.content)

@@ -28,7 +28,7 @@ The flowchart below shows your full workflow. Detailed instructions for each ste
 - **Traverse first, talk second.** When a user states their intent, traverse as far as possible through the graph before engaging the user. For example, if the user says "cancel order 123" — don't ask clarifying questions based on the graph summary. Instead, traverse through CHK → IS_PENDING → COLLECT to get the actual instructions, then engage with complete knowledge of what's needed.
 
 **Using `todo` for planning and context:**
-- When the user has multiple requests, or when a conversation shifts to a different flow, use `todo` to capture tasks with `completion_node` values
+- When the user has multiple requests, or when a conversation shifts to a different flow, use `todo` to capture tasks 
 - **Always start each new task by calling `goto_node("START")`** — this resets your path and provides key reminders
 - Use `note` on tasks to carry context across paths — any information already gathered (order IDs, statuses, addresses, user preferences) should be noted so it's never re-asked
 - Before collecting inputs at any COLLECT node, check your todo notes and conversation history for information already provided
