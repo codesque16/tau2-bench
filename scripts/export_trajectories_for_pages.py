@@ -133,6 +133,11 @@ def main():
         help="Simulation JSON paths; if omitted, all data/simulations/*.json are used",
     )
     parser.add_argument(
+        "--name",
+        metavar="RUN_NAME",
+        help="Display name for this run (e.g. '[Retail][Mermaid_harness_v1][2026-02-25T13_34_45]'). Used as label; run id is sanitized for paths.",
+    )
+    parser.add_argument(
         "--add",
         action="store_true",
         help="Merge new runs into existing runs.json instead of replacing (only with explicit simulation paths)",
@@ -169,7 +174,13 @@ def main():
         if not sim_path.exists():
             print(f"Skip (not found): {sim_path}")
             continue
-        run_id = run_id_from_path(sim_path)
+        use_custom_name = args.name and (len(sim_paths) == 1 or i == 0)
+        if use_custom_name:
+            run_id = sanitize_filename(args.name)
+            label = args.name
+        else:
+            run_id = run_id_from_path(sim_path)
+            label = label_from_path(sim_path)
         if args.add and run_id in existing_ids:
             print(f"Skip (already in viewer): {sim_path.name}")
             continue
