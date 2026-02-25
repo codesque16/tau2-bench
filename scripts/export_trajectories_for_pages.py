@@ -134,19 +134,15 @@ def main():
     )
     parser.add_argument(
         "--name",
+        type=str,
+        default=None,
         metavar="RUN_NAME",
-        help="Display name for this run (e.g. '[Retail][Mermaid_harness_v1][2026-02-25T13_34_45]'). Used as label; run id is sanitized for paths.",
+        help="Display name for this run (e.g. '[Retail][Mermaid_harness_v1][2026-02-25T13_34_45]'). Used as label for the first simulation when multiple are given; run id is sanitized for paths.",
     )
     parser.add_argument(
         "--add",
         action="store_true",
         help="Merge new runs into existing runs.json instead of replacing (only with explicit simulation paths)",
-    )
-    parser.add_argument(
-        "--name",
-        type=str,
-        default=None,
-        help="Custom label for the run (used for the first simulation when multiple are given)",
     )
     args = parser.parse_args()
 
