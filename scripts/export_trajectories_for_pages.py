@@ -137,6 +137,12 @@ def main():
         action="store_true",
         help="Merge new runs into existing runs.json instead of replacing (only with explicit simulation paths)",
     )
+    parser.add_argument(
+        "--name",
+        type=str,
+        default=None,
+        help="Custom label for the run (used for the first simulation when multiple are given)",
+    )
     args = parser.parse_args()
 
     if args.simulations:
@@ -159,7 +165,7 @@ def main():
             existing_ids = {r["id"] for r in existing_runs}
 
     runs = [] if not args.add else list(existing_runs)
-    for sim_path in sim_paths:
+    for i, sim_path in enumerate(sim_paths):
         if not sim_path.exists():
             print(f"Skip (not found): {sim_path}")
             continue
@@ -168,11 +174,12 @@ def main():
             print(f"Skip (already in viewer): {sim_path.name}")
             continue
         out_dir = data_root / run_id
+        label = args.name if (args.name is not None and i == 0) else label_from_path(sim_path)
         try:
             info = export_one(sim_path, out_dir)
             run_entry = {
                 "id": run_id,
-                "label": label_from_path(sim_path),
+                "label": label,
                 "domain": info.get("domain"),
                 "timestamp": info.get("run_timestamp"),
                 "num_tasks": info["num_tasks"],

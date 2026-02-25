@@ -4,7 +4,7 @@ import queue
 import sys
 import threading
 from copy import deepcopy
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from loguru import logger
 from pydantic import BaseModel
@@ -53,6 +53,9 @@ SYSTEM_PROMPT = """
 {domain_policy}
 </policy>
 """.strip()
+
+# Mermaid agent: policy only, no extra instructions
+SYSTEM_PROMPT_MERMAID = "{domain_policy}"
 
 
 class LLMAgentState(BaseModel):
@@ -109,7 +112,10 @@ class LLMAgent(LocalAgent[LLMAgentState]):
         )
 
     def generate_next_message(
-        self, message: ValidAgentInputMessage, state: LLMAgentState
+        self,
+        message: ValidAgentInputMessage,
+        state: LLMAgentState,
+        trajectory_sink: Optional[Callable[[Message], None]] = None,
     ) -> tuple[AssistantMessage, LLMAgentState]:
         """
         Respond to a user or tool message.
@@ -238,7 +244,10 @@ class LLMGTAgent(LocalAgent[LLMAgentState]):
         )
 
     def generate_next_message(
-        self, message: ValidAgentInputMessage, state: LLMAgentState
+        self,
+        message: ValidAgentInputMessage,
+        state: LLMAgentState,
+        trajectory_sink: Optional[Callable[[Message], None]] = None,
     ) -> tuple[AssistantMessage, LLMAgentState]:
         """
         Respond to a user or tool message.
@@ -455,7 +464,10 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
         )
 
     def generate_next_message(
-        self, message: Optional[ValidAgentInputMessage], state: LLMAgentState
+        self,
+        message: Optional[ValidAgentInputMessage],
+        state: LLMAgentState,
+        trajectory_sink: Optional[Callable[[Message], None]] = None,
     ) -> tuple[AssistantMessage, LLMAgentState]:
         """
         Respond to a user or tool message.
@@ -530,6 +542,10 @@ class LLMMermaidAgent(LLMAgent):
         )
         if self._mcp_server_url:
             self._init_mcp_and_tools()
+
+    @property
+    def system_prompt(self) -> str:
+        return SYSTEM_PROMPT_MERMAID.format(domain_policy=self.domain_policy)
 
     def _init_mcp_and_tools(self) -> None:
         """Connect to MCP and set up SOP tools, following agent_mermaid MCP patterns.
@@ -655,7 +671,10 @@ class LLMMermaidAgent(LLMAgent):
         return self._mcp_call_sync(name, arguments)
 
     def generate_next_message(
-        self, message: ValidAgentInputMessage, state: LLMAgentState
+        self,
+        message: ValidAgentInputMessage,
+        state: LLMAgentState,
+        trajectory_sink: Optional[Callable[[Message], None]] = None,
     ) -> tuple[AssistantMessage, LLMAgentState]:
         if isinstance(message, MultiToolMessage):
             state.messages.extend(message.tool_messages)
@@ -679,14 +698,17 @@ class LLMMermaidAgent(LLMAgent):
             if not mcp_only:
                 return assistant_message, state
 
+            if trajectory_sink is not None:
+                trajectory_sink(assistant_message)
             for tc in assistant_message.tool_calls:
                 result = self._call_mcp_sync(tc.name, tc.arguments)
-                state.messages.append(
-                    ToolMessage(
-                        id=tc.id,
-                        content=result,
-                        requestor="assistant",
-                        role="tool",
-                    )
+                tool_msg = ToolMessage(
+                    id=tc.id,
+                    content=result,
+                    requestor="assistant",
+                    role="tool",
                 )
+                state.messages.append(tool_msg)
+                if trajectory_sink is not None:
+                    trajectory_sink(tool_msg)
             messages = state.system_messages + state.messages

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, TypeVar
+from typing import Callable, Generic, Optional, TypeVar
 
 from loguru import logger
 
@@ -41,13 +41,18 @@ class BaseAgent(ABC, Generic[AgentState]):
 
     @abstractmethod
     def generate_next_message(
-        self, message: ValidAgentInputMessage, state: AgentState
+        self,
+        message: ValidAgentInputMessage,
+        state: AgentState,
+        trajectory_sink: Optional[Callable[[Message], None]] = None,
     ) -> tuple[AssistantMessage, AgentState]:
         """
         Generate the next message from a user/tool message(s) and an agent state.
         Args:
             message: The user message or tool message(s).
             state: The agent state.
+            trajectory_sink: Optional callback to append messages to the simulation
+                trajectory (e.g. internal tool calls like MCP that are not sent to the env).
 
         Returns:
             A tuple of an assistant message and an agent state.

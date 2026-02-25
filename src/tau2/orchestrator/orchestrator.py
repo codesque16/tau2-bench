@@ -296,9 +296,10 @@ class Orchestrator:
             else:
                 self.agent_state = self.agent.get_init_state()
                 first_message, self.agent_state = self.agent.generate_next_message(
-                    None, self.agent_state
+                    None, self.agent_state,
+                    trajectory_sink=self.trajectory.append,
                 )
-                self.trajectory = [first_message]
+                self.trajectory.append(first_message)
                 self.message = first_message
                 # In solo mode, there is no user, so if the message is not a tool call, then we end and report an agent error
                 if not first_message.is_tool_call():
@@ -550,7 +551,8 @@ class Orchestrator:
             self.from_role == Role.USER or self.from_role == Role.ENV
         ) and self.to_role == Role.AGENT:
             agent_msg, self.agent_state = self.agent.generate_next_message(
-                self.message, self.agent_state
+                self.message, self.agent_state,
+                trajectory_sink=self.trajectory.append,
             )
             agent_msg.validate()
             if self.agent.is_stop(agent_msg):

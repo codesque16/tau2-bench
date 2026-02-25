@@ -220,13 +220,8 @@ Progressive delivery of node instructions. The agent calls this to move through 
 {
   "node": {
     "id": "COLLECT_CANCEL",
-    "type": "rectangle",
-    "text": "Collect and confirm:\n1. **order_id**\n2. **reason**: 'no longer needed' OR 'ordered by mistake'"
+    "node_instruction": "Collect and confirm:\n1. **order_id**\n2. **reason**: 'no longer needed' OR 'ordered by mistake'"
   },
-  "annotations": [
-    {"type": "REMINDER", "text": "Only these two reasons are acceptable"},
-    {"type": "TOOLS", "text": "cancel_pending_order"}
-  ],
   "edges": [
     {"to": "REFUND_CANCEL", "condition": null}
   ],
