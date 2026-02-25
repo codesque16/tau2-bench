@@ -1,5 +1,6 @@
 import argparse
 import json
+import sys
 
 from tau2.config import (
     DEFAULT_AGENT_IMPLEMENTATION,
@@ -164,12 +165,14 @@ def add_run_args(parser):
     )
     parser.add_argument(
         "--mcp-server-url",
+        dest="mcp_server_url",
         type=str,
         default=None,
         help="MCP server URL for the mermaid agent (e.g. http://localhost:8000/mcp). Only used when --agent is llm_mermaid_agent.",
     )
     parser.add_argument(
         "--mcp-sop-file",
+        dest="mcp_sop_file",
         type=str,
         default=None,
         help="SOP file or agent name for MCP load_graph (e.g. retail). Only used when --agent is llm_mermaid_agent.",
@@ -187,6 +190,9 @@ def main():
         llm_args_agent = dict(args.agent_llm_args) if args.agent_llm_args is not None else dict(DEFAULT_LLM_ARGS_AGENT)
         if args.reasoning_effort is not None:
             llm_args_agent["reasoning_effort"] = args.reasoning_effort
+        mcp_server_url = getattr(args, "mcp_server_url", None)
+        mcp_sop_file = getattr(args, "mcp_sop_file", None)
+        print(f"[CLI] mcp_server_url={mcp_server_url!r} mcp_sop_file={mcp_sop_file!r}", file=sys.stderr, flush=True)
         return run_domain(
             RunConfig(
                 domain=args.domain,
@@ -210,8 +216,8 @@ def main():
                 enforce_communication_protocol=args.enforce_communication_protocol,
                 run_name=args.name,
                 service_name=args.service_name,
-                mcp_server_url=getattr(args, "mcp_server_url", None),
-                mcp_sop_file=getattr(args, "mcp_sop_file", None),
+                mcp_server_url=mcp_server_url,
+                mcp_sop_file=mcp_sop_file,
             )
         )
 

@@ -9,7 +9,7 @@ from typing import Optional
 import logfire
 from loguru import logger
 
-from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMSoloAgent
+from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMMermaidAgent, LLMSoloAgent
 from tau2.data_model.simulation import (
     AgentInfo,
     Info,
@@ -449,6 +449,8 @@ def run_tasks(
                         evaluation_type=evaluation_type,
                         seed=seed,
                         enforce_communication_protocol=enforce_communication_protocol,
+                        mcp_server_url=mcp_server_url,
+                        mcp_sop_file=mcp_sop_file,
                     )
                 # Nested span: evaluation (what passed/failed, reward, reasons)
                 _log_evaluation_span(simulation)
@@ -532,6 +534,8 @@ def run_task(
     evaluation_type: EvaluationType = EvaluationType.ALL,
     seed: Optional[int] = None,
     enforce_communication_protocol: bool = False,
+    mcp_server_url: Optional[str] = None,
+    mcp_sop_file: Optional[str] = None,
 ) -> SimulationRun:
     """
     Runs tasks for a given domain.
@@ -568,7 +572,17 @@ def run_task(
     AgentConstructor = registry.get_agent_constructor(agent)
 
     solo_mode = False
-    if issubclass(AgentConstructor, LLMAgent):
+    # Check LLMMermaidAgent before LLMAgent (LLMMermaidAgent subclasses LLMAgent)
+    if issubclass(AgentConstructor, LLMMermaidAgent):
+        agent = AgentConstructor(
+            tools=environment.get_tools(),
+            domain_policy=environment.get_policy(),
+            llm=llm_agent,
+            llm_args=llm_args_agent,
+            mcp_server_url=mcp_server_url or "",
+            sop_file=mcp_sop_file or "",
+        )
+    elif issubclass(AgentConstructor, LLMAgent):
         agent = AgentConstructor(
             tools=environment.get_tools(),
             domain_policy=environment.get_policy(),
@@ -598,15 +612,6 @@ def run_task(
         agent = AgentConstructor(
             tools=environment.get_tools(),
             domain_policy=environment.get_policy(),
-        )
-    elif issubclass(AgentConstructor, LLMMermaidAgent):
-        agent = AgentConstructor(
-            tools=environment.get_tools(),
-            domain_policy=environment.get_policy(),
-            llm=llm_agent,
-            llm_args=llm_args_agent,
-            mcp_server_url=mcp_server_url or "",
-            sop_file=mcp_sop_file or "",
         )
     else:
         raise ValueError(

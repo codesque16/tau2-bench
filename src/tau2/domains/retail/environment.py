@@ -6,7 +6,7 @@ from typing import Optional
 
 from tau2.data_model.tasks import Task
 from tau2.domains.retail.data_model import RetailDB
-from tau2.domains.retail.tools import DISABLED_POLICY_FETCH_TOOLS, RetailTools
+from tau2.domains.retail.tools import RetailTools
 from tau2.domains.retail.utils import (
     RETAIL_DB_PATH,
     RETAIL_POLICY_PATH,
@@ -19,18 +19,12 @@ from tau2.utils import load_file
 def get_environment(
     db: Optional[RetailDB] = None,
     solo_mode: bool = False,
-    disable_policy_fetch_tools: Optional[bool] = None,
 ) -> Environment:
     if solo_mode:
         raise ValueError("Retail domain does not support solo mode")
     if db is None:
         db = RetailDB.load(RETAIL_DB_PATH)
-    if disable_policy_fetch_tools is None:
-        disable_policy_fetch_tools = os.environ.get(
-            "TAU2_RETAIL_DISABLE_POLICY_FETCH_TOOLS", ""
-        ).lower() in ("1", "true", "yes")
-    excluded = list(DISABLED_POLICY_FETCH_TOOLS) if disable_policy_fetch_tools else None
-    tools = RetailTools(db, excluded_tool_names=excluded)
+    tools = RetailTools(db)
     with open(RETAIL_POLICY_PATH, "r") as fp:
         policy = fp.read()
     return Environment(

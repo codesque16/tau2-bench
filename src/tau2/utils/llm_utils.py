@@ -373,6 +373,7 @@ def get_token_usage(messages: list[Message]) -> dict:
 
 
 def _mcp_tools_to_openai_format(tools_response: Any) -> list[dict[str, Any]]:
+    """Convert MCP ListToolsResult to OpenAI-style tool list; strip hidden params."""
     _HIDDEN_PARAMS = {"session_id", "ctx"}
     out = []
     for tool in getattr(tools_response, "tools", []) or []:
@@ -397,8 +398,25 @@ def _mcp_tools_to_openai_format(tools_response: Any) -> list[dict[str, Any]]:
         })
     return out
 
+
 class _MCPToolSchema:
-    """Minimal tool-like object for MCP tools: only openai_schema is used by generate()."""
+    """Minimal tool-like object for MCP tools; only openai_schema is used by generate()."""
+
     def __init__(self, schema: dict):
         self.name = schema["function"]["name"]
         self.openai_schema = schema
+
+
+def _format_mcp_call_tool_result(result: Any) -> str:
+    """Format MCP CallToolResult as string (content text or JSON)."""
+    if getattr(result, "isError", False):
+        content = getattr(result, "content", []) or []
+        parts = [c.text for c in content if hasattr(c, "text")]
+        return json.dumps({"error": " ".join(parts) or "Unknown error"})
+    out = []
+    for c in getattr(result, "content", []) or []:
+        if hasattr(c, "text"):
+            out.append(c.text)
+    if hasattr(result, "structuredContent") and result.structuredContent:
+        return json.dumps(result.structuredContent)
+    return "\n".join(out) if out else "{}"

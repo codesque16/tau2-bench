@@ -1,3 +1,8 @@
+import asyncio
+import json
+import queue
+import sys
+import threading
 from copy import deepcopy
 from typing import List, Optional
 
@@ -19,7 +24,12 @@ from tau2.data_model.message import (
 )
 from tau2.data_model.tasks import Action, Task
 from tau2.environment.tool import Tool, as_tool
-from tau2.utils.llm_utils import generate
+from tau2.utils.llm_utils import (
+    generate,
+    _format_mcp_call_tool_result,
+    _mcp_tools_to_openai_format,
+    _MCPToolSchema,
+)
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
@@ -484,10 +494,14 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
 
 class LLMMermaidAgent(LLMAgent):
     """
-    LLM agent that adds MCP SOP tools (goto_node, todo) and runs them via the MCP server.
-    Assumes MCP server is already running. In __init__, connects to MCP, calls load_graph(sop_file),
-    then list_tools(); exposes all tools except load_graph to the LLM; executes MCP tool calls
-    inside generate_next_message before returning.
+    LLM agent that adds MCP SOP tools (e.g. goto_node, todo) and runs them via the MCP server.
+
+    Follows the same MCP initializing and calling patterns as agent/agent_mermaid/agent.py:
+    streamable_http_client(url), ClientSession, initialize(), load_graph(sop_file), list_tools();
+    tool schemas from _mcp_tools_to_openai_format (stripping session_id/ctx); load_graph excluded
+    from tools exposed to the LLM; tool results formatted via _format_mcp_call_tool_result.
+    We call list_tools() before load_graph() to avoid ClosedResourceError when the server
+    returns 202 for load_graph. Assumes the MCP server is already running.
     """
 
     def __init__(
@@ -505,18 +519,133 @@ class LLMMermaidAgent(LLMAgent):
         self._mcp_tool_names: set[str] = set()
         self._mcp_call_sync: Optional[callable] = None  # (name, arguments) -> str
 
+        # Unconditional print so we see something even when log_level=ERROR filters everything else
+        print(f"[LLMMermaidAgent] init mcp_server_url={mcp_server_url!r} will_init_mcp={bool(self._mcp_server_url)}", file=sys.stderr, flush=True)
+        # Use error level so logs appear when default log_level is ERROR (WARNING is filtered out)
+        logger.error(
+            "LLMMermaidAgent: mcp_server_url={!r} (will init MCP: {})",
+            mcp_server_url,
+            bool(self._mcp_server_url),
+        )
         if self._mcp_server_url:
             self._init_mcp_and_tools()
 
     def _init_mcp_and_tools(self) -> None:
-        """Connect to MCP, call load_graph(sop_file), list_tools; append MCP tools (excluding load_graph)."""
-        # 1) Run async: connect, session.initialize(), call_tool("load_graph", {"sop_file": self._sop_file}), list_tools().
-        # 2) Convert list_tools result with _mcp_tools_to_openai_format; filter out name == "load_graph".
-        # 3) self.tools = self.tools + [_MCPToolSchema(s) for s in mcp_schemas]
-        # 4) self._mcp_tool_names = {s["function"]["name"] for s in mcp_schemas}
-        # 5) Start a thread that keeps the MCP session and a request/result queue; set self._mcp_call_sync to a
-        #    function that enqueues (name, arguments) and returns the formatted string result.
-        pass  # replace with actual implementation using asyncio + thread + queue
+        """Connect to MCP and set up SOP tools, following agent_mermaid MCP patterns.
+
+        Matches agent/agent_mermaid/agent.py: streamable_http_client(url), ClientSession,
+        session.initialize(), load_graph(sop_file), list_tools(); then expose tools (excluding
+        load_graph) and run tool calls via the session. We call list_tools() before load_graph()
+        so the tool list is received over normal request/response; if load_graph returns 202 the
+        response is delivered via the GET stream and the transport may close afterward, which
+        would make a subsequent list_tools() raise ClosedResourceError.
+        """
+        url = self._mcp_server_url.rstrip("/") + "/mcp" if "/mcp" not in self._mcp_server_url else self._mcp_server_url
+        logger.error("LLMMermaidAgent: _init_mcp_and_tools started sop_file={!r} url={!r}", self._sop_file, url)
+        init_queue: queue.Queue = queue.Queue()
+        request_queue: queue.Queue = queue.Queue()
+        result_queue: queue.Queue = queue.Queue()
+
+        async def _mcp_worker_async() -> None:
+            try:
+                logger.error("LLMMermaidAgent: connecting to MCP url={!r}", url)
+                async with streamable_http_client(url) as (read_stream, write_stream, _):
+                    logger.error("LLMMermaidAgent: streamable_http_client connected")
+                    async with ClientSession(read_stream, write_stream) as session:
+                        await session.initialize()
+                        logger.error("LLMMermaidAgent: session.initialize() done")
+                        # Call list_tools before load_graph so we get the tool list over normal
+                        # request/response. load_graph often returns 202 and the response is delivered
+                        # via the GET stream; when that stream ends the transport can close and
+                        # list_tools would then raise ClosedResourceError.
+                        tools_response = await session.list_tools()
+                        num_tools = len(getattr(tools_response, "tools", []) or [])
+                        logger.error(
+                            "LLMMermaidAgent: list_tools() returned {} tools",
+                            num_tools,
+                        )
+                        mcp_schemas = _mcp_tools_to_openai_format(tools_response)
+                        mcp_names = [s.get("function", {}).get("name") for s in mcp_schemas]
+                        logger.error(
+                            "LLMMermaidAgent: converted to {} OpenAI schemas names={}",
+                            len(mcp_schemas),
+                            mcp_names,
+                        )
+                        load_result = await session.call_tool(
+                            "load_graph",
+                            arguments={"sop_file": self._sop_file},
+                        )
+                        logger.error(
+                            "LLMMermaidAgent: load_graph(sop_file={!r}) done isError={}",
+                            self._sop_file,
+                            getattr(load_result, "isError", False),
+                        )
+                        if getattr(load_result, "isError", False):
+                            content = getattr(load_result, "content", []) or []
+                            err_text = content[0].text if content else str(load_result)
+                            init_queue.put(("error", RuntimeError(f"load_graph failed: {err_text}")))
+                            return
+                        mcp_schemas = [
+                            s for s in mcp_schemas
+                            if (s.get("function") or {}).get("name") != "load_graph"
+                        ]
+                        mcp_tool_names = {s["function"]["name"] for s in mcp_schemas}
+                        logger.error(
+                            "LLMMermaidAgent: after filter load_graph {} tools names={}",
+                            len(mcp_schemas),
+                            sorted(mcp_tool_names),
+                        )
+                        if len(mcp_schemas) == 0:
+                            logger.warning(
+                                "LLMMermaidAgent: no MCP tools after filtering load_graph; server may only expose load_graph"
+                            )
+                        init_queue.put(("ok", (mcp_schemas, mcp_tool_names)))
+                        logger.error("LLMMermaidAgent: put (ok) on init_queue; entering tool-call loop")
+                        while True:
+                            item = request_queue.get()
+                            if item is None:
+                                break
+                            name, arguments = item
+                            try:
+                                result = await session.call_tool(name, arguments=arguments)
+                                result_queue.put(_format_mcp_call_tool_result(result))
+                            except Exception as e:
+                                result_queue.put(json.dumps({"error": str(e)}))
+            except Exception as e:
+                logger.exception("LLMMermaidAgent: MCP worker failed before putting result")
+                init_queue.put(("error", e))
+
+        def run_worker() -> None:
+            asyncio.run(_mcp_worker_async())
+
+        thread = threading.Thread(target=run_worker, daemon=True)
+        thread.start()
+        kind, payload = init_queue.get()
+        logger.error("LLMMermaidAgent: init_queue.get() -> kind={!r}", kind)
+        if kind == "error":
+            raise payload
+        mcp_schemas, mcp_tool_names = payload
+        domain_tool_count = len(self.tools)
+        self.tools = list(self.tools) + [_MCPToolSchema(s) for s in mcp_schemas]
+        self._mcp_tool_names = mcp_tool_names
+        logger.error(
+            "LLMMermaidAgent: added {} MCP tools (domain={} total={}) MCP_names={}",
+            len(mcp_schemas),
+            domain_tool_count,
+            len(self.tools),
+            sorted(self._mcp_tool_names),
+        )
+        print(
+            f"[LLMMermaidAgent] tools: domain={domain_tool_count} mcp={len(mcp_schemas)} total={len(self.tools)} names={sorted(self._mcp_tool_names)}",
+            file=sys.stderr,
+            flush=True,
+        )
+
+        def _call_sync(name: str, arguments: dict) -> str:
+            request_queue.put((name, arguments))
+            return result_queue.get()
+
+        self._mcp_call_sync = _call_sync
 
     def _call_mcp_sync(self, name: str, arguments: dict) -> str:
         """Call MCP tool and return result as string (content text or JSON)."""
