@@ -20,6 +20,7 @@ from tau2.data_model.message import (
     Message,
     MultiToolMessage,
     SystemMessage,
+    ToolMessage,
     UserMessage,
 )
 from tau2.data_model.tasks import Action, Task

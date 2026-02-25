@@ -68,3 +68,52 @@ flowchart TD
     %% --- Fallback ---
     ROUTE -.->|out of scope| ESCALATE_HUMAN([Escalate to human agent])
 ```
+
+## How to Use This SOP Mermaid Graph
+
+The flowchart below shows your full workflow. Detailed instructions for each step are delivered progressively — call goto_node to receive the prompt, available tools, and examples for your current step.
+
+*For every conversation:*
+1. Call goto_node("START") to begin, then follow edges through the graph
+2. At each node, read the returned prompt and use the listed tools
+3. Follow outgoing edges to decide your next node, then call goto_node again
+4. Never skip nodes or jump ahead — the harness validates every transition
+
+*When the user has multiple requests:*
+1. Acknowledge all requests upfront
+2. Use todo to capture each as a task with a completion_node
+3. Work through tasks one at a time via the graph
+4. Use note on tasks to carry context discovered during other tasks (e.g. an address found in task 1 that task 2 also needs)
+5. When goto_node returns a todo_reminder, update your todo list and move to the next task
+
+*Never expose to the user:* node IDs, graph paths, todo internals, or any reference to this SOP system.
+
+*Example — single request (cancel order):*
+
+goto_node("START") → goto_node("AUTH") → authenticate user
+goto_node("ROUTE") → user wants to cancel
+goto_node("CHK_CANCEL") → get order details
+goto_node("IS_PENDING_C") → status is pending, take yes edge
+goto_node("COLLECT_CANCEL") → collect order_id and reason
+goto_node("DO_CANCEL") → confirm with user, cancel order
+goto_node("END_CANCEL") → done
+
+
+*Example — multiple requests (address change + exchange):*
+
+todo([
+  {content: "Change order address", status: "pending", completion_node: "END_MOD"},
+  {content: "Exchange tablet", status: "pending", completion_node: "END_EXCH"}
+])
+
+goto_node("START") → goto_node("AUTH") → authenticate user
+
+# Task 1: address change
+goto_node("ROUTE") → goto_node("CHK_MOD") → goto_node("IS_PENDING_M") → yes
+goto_node("COLLECT_MOD_ADDR") → goto_node("DO_MOD_ADDR") → goto_node("END_MOD")
+→ todo_reminder → update todos, mark task 1 completed
+
+# Task 2: exchange
+goto_node("ROUTE") → goto_node("CHK_EXCH") → goto_node("IS_DELIVERED_E") → yes
+goto_node("COLLECT_EXCH") → goto_node("DO_EXCH") → goto_node("END_EXCH")
+→ todo_reminder → update todos, mark task 2 completed
