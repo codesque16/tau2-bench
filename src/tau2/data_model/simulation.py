@@ -182,6 +182,21 @@ class RunConfig(BaseModel):
         ),
     ]
 
+    mcp_server_url: Annotated[
+        Optional[str],
+        Field(
+            description="MCP server URL for LLMMermaidAgent (e.g. http://localhost:8000/mcp). Only used when agent is llm_mermaid_agent.",
+            default=None,
+        ),
+    ]
+    mcp_sop_file: Annotated[
+        Optional[str],
+        Field(
+            description="SOP file or agent name for MCP load_graph (e.g. retail). Only used when agent is llm_mermaid_agent.",
+            default=None,
+        ),
+    ]
+
     def validate(self) -> None:
         """
         Validate the run config

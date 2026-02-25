@@ -369,3 +369,36 @@ def get_token_usage(messages: list[Message]) -> dict:
     if reasoning_tokens:
         usage["reasoning_tokens"] = reasoning_tokens
     return usage
+
+
+
+def _mcp_tools_to_openai_format(tools_response: Any) -> list[dict[str, Any]]:
+    _HIDDEN_PARAMS = {"session_id", "ctx"}
+    out = []
+    for tool in getattr(tools_response, "tools", []) or []:
+        name = getattr(tool, "name", "") or ""
+        description = getattr(tool, "description", None) or ""
+        input_schema = getattr(tool, "inputSchema", None) or {"type": "object", "properties": {}}
+        if isinstance(input_schema, dict):
+            props = input_schema.get("properties") or {}
+            required = input_schema.get("required") or []
+            input_schema = {
+                **input_schema,
+                "properties": {k: v for k, v in props.items() if k not in _HIDDEN_PARAMS},
+                "required": [r for r in required if r not in _HIDDEN_PARAMS],
+            }
+        out.append({
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": description,
+                "parameters": input_schema,
+            },
+        })
+    return out
+
+class _MCPToolSchema:
+    """Minimal tool-like object for MCP tools: only openai_schema is used by generate()."""
+    def __init__(self, schema: dict):
+        self.name = schema["function"]["name"]
+        self.openai_schema = schema

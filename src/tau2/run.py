@@ -214,6 +214,8 @@ def run_domain(config: RunConfig) -> Results:
             seed=config.seed,
             log_level=config.log_level,
             enforce_communication_protocol=config.enforce_communication_protocol,
+            mcp_server_url=config.mcp_server_url,
+            mcp_sop_file=config.mcp_sop_file,
         )
         metrics = compute_metrics(simulation_results)
         # Dedicated metrics span for evaluation results (nested under top span)
@@ -255,6 +257,8 @@ def run_tasks(
     seed: Optional[int] = 300,
     log_level: Optional[str] = "INFO",
     enforce_communication_protocol: bool = False,
+    mcp_server_url: Optional[str] = None,
+    mcp_sop_file: Optional[str] = None,
 ) -> Results:
     """
     Runs tasks for a given domain.
@@ -594,6 +598,15 @@ def run_task(
         agent = AgentConstructor(
             tools=environment.get_tools(),
             domain_policy=environment.get_policy(),
+        )
+    elif issubclass(AgentConstructor, LLMMermaidAgent):
+        agent = AgentConstructor(
+            tools=environment.get_tools(),
+            domain_policy=environment.get_policy(),
+            llm=llm_agent,
+            llm_args=llm_args_agent,
+            mcp_server_url=mcp_server_url or "",
+            sop_file=mcp_sop_file or "",
         )
     else:
         raise ValueError(

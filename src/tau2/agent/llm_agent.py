@@ -21,6 +21,9 @@ from tau2.data_model.tasks import Action, Task
 from tau2.environment.tool import Tool, as_tool
 from tau2.utils.llm_utils import generate
 
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
+
 AGENT_INSTRUCTION = """
 You are a customer service agent that helps the user according to the <policy> provided below.
 In each turn you can either:
@@ -477,3 +480,83 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
         if cur_seed is not None:
             logger.warning(f"Seed is already set to {cur_seed}, resetting it to {seed}")
         self.llm_args["seed"] = seed
+
+
+class LLMMermaidAgent(LLMAgent):
+    """
+    LLM agent that adds MCP SOP tools (goto_node, todo) and runs them via the MCP server.
+    Assumes MCP server is already running. In __init__, connects to MCP, calls load_graph(sop_file),
+    then list_tools(); exposes all tools except load_graph to the LLM; executes MCP tool calls
+    inside generate_next_message before returning.
+    """
+
+    def __init__(
+        self,
+        tools: List[Tool],
+        domain_policy: str,
+        llm: Optional[str] = None,
+        llm_args: Optional[dict] = None,
+        mcp_server_url: str = "",
+        sop_file: str = "retail",
+    ):
+        super().__init__(tools=tools, domain_policy=domain_policy, llm=llm, llm_args=llm_args)
+        self._mcp_server_url = (mcp_server_url or "").strip() or None
+        self._sop_file = sop_file or "retail"
+        self._mcp_tool_names: set[str] = set()
+        self._mcp_call_sync: Optional[callable] = None  # (name, arguments) -> str
+
+        if self._mcp_server_url:
+            self._init_mcp_and_tools()
+
+    def _init_mcp_and_tools(self) -> None:
+        """Connect to MCP, call load_graph(sop_file), list_tools; append MCP tools (excluding load_graph)."""
+        # 1) Run async: connect, session.initialize(), call_tool("load_graph", {"sop_file": self._sop_file}), list_tools().
+        # 2) Convert list_tools result with _mcp_tools_to_openai_format; filter out name == "load_graph".
+        # 3) self.tools = self.tools + [_MCPToolSchema(s) for s in mcp_schemas]
+        # 4) self._mcp_tool_names = {s["function"]["name"] for s in mcp_schemas}
+        # 5) Start a thread that keeps the MCP session and a request/result queue; set self._mcp_call_sync to a
+        #    function that enqueues (name, arguments) and returns the formatted string result.
+        pass  # replace with actual implementation using asyncio + thread + queue
+
+    def _call_mcp_sync(self, name: str, arguments: dict) -> str:
+        """Call MCP tool and return result as string (content text or JSON)."""
+        if self._mcp_call_sync is None:
+            return json.dumps({"error": "MCP not initialized"})
+        return self._mcp_call_sync(name, arguments)
+
+    def generate_next_message(
+        self, message: ValidAgentInputMessage, state: LLMAgentState
+    ) -> tuple[AssistantMessage, LLMAgentState]:
+        if isinstance(message, MultiToolMessage):
+            state.messages.extend(message.tool_messages)
+        else:
+            state.messages.append(message)
+        messages = state.system_messages + state.messages
+
+        while True:
+            assistant_message = generate(
+                model=self.llm,
+                tools=self.tools,
+                messages=messages,
+                caller="agent",
+                **self.llm_args,
+            )
+            state.messages.append(assistant_message)
+
+            if not assistant_message.is_tool_call():
+                return assistant_message, state
+            mcp_only = all(t.name in self._mcp_tool_names for t in assistant_message.tool_calls)
+            if not mcp_only:
+                return assistant_message, state
+
+            for tc in assistant_message.tool_calls:
+                result = self._call_mcp_sync(tc.name, tc.arguments)
+                state.messages.append(
+                    ToolMessage(
+                        id=tc.id,
+                        content=result,
+                        requestor="assistant",
+                        role="tool",
+                    )
+                )
+            messages = state.system_messages + state.messages

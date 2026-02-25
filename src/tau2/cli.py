@@ -162,6 +162,18 @@ def add_run_args(parser):
         default=False,
         help="Enforce communication protocol rules (e.g., no mixed messages with text and tool calls). Default is False.",
     )
+    parser.add_argument(
+        "--mcp-server-url",
+        type=str,
+        default=None,
+        help="MCP server URL for the mermaid agent (e.g. http://localhost:8000/mcp). Only used when --agent is llm_mermaid_agent.",
+    )
+    parser.add_argument(
+        "--mcp-sop-file",
+        type=str,
+        default=None,
+        help="SOP file or agent name for MCP load_graph (e.g. retail). Only used when --agent is llm_mermaid_agent.",
+    )
 
 
 def main():
@@ -198,6 +210,8 @@ def main():
                 enforce_communication_protocol=args.enforce_communication_protocol,
                 run_name=args.name,
                 service_name=args.service_name,
+                mcp_server_url=getattr(args, "mcp_server_url", None),
+                mcp_sop_file=getattr(args, "mcp_sop_file", None),
             )
         )
 
