@@ -531,6 +531,7 @@ class LLMMermaidAgent(LLMAgent):
         self._sop_file = sop_file or "retail"
         self._mcp_tool_names: set[str] = set()
         self._mcp_call_sync: Optional[callable] = None  # (name, arguments) -> str
+        self._mermaid_system_prompt: Optional[str] = None  # set from load_graph result when MCP is used
 
         # Unconditional print so we see something even when log_level=ERROR filters everything else
         print(f"[LLMMermaidAgent] init mcp_server_url={mcp_server_url!r} will_init_mcp={bool(self._mcp_server_url)}", file=sys.stderr, flush=True)
@@ -545,6 +546,8 @@ class LLMMermaidAgent(LLMAgent):
 
     @property
     def system_prompt(self) -> str:
+        if self._mermaid_system_prompt is not None and (s := self._mermaid_system_prompt.strip()):
+            return s
         return SYSTEM_PROMPT_MERMAID.format(domain_policy=self.domain_policy)
 
     def _init_mcp_and_tools(self) -> None:
@@ -602,6 +605,14 @@ class LLMMermaidAgent(LLMAgent):
                             err_text = content[0].text if content else str(load_result)
                             init_queue.put(("error", RuntimeError(f"load_graph failed: {err_text}")))
                             return
+                        # Extract system_prompt from load_graph result (AGENTS.md minus frontmatter minus Node Prompts)
+                        load_content = getattr(load_result, "content", []) or []
+                        load_text = (load_content[0].text if load_content and hasattr(load_content[0], "text") else None) or ""
+                        try:
+                            load_data = json.loads(load_text) if load_text.strip().startswith("{") else {}
+                        except json.JSONDecodeError:
+                            load_data = {}
+                        mermaid_system_prompt = load_data.get("system_prompt")
                         mcp_schemas = [
                             s for s in mcp_schemas
                             if (s.get("function") or {}).get("name") != "load_graph"
@@ -616,7 +627,7 @@ class LLMMermaidAgent(LLMAgent):
                             logger.warning(
                                 "LLMMermaidAgent: no MCP tools after filtering load_graph; server may only expose load_graph"
                             )
-                        init_queue.put(("ok", (mcp_schemas, mcp_tool_names)))
+                        init_queue.put(("ok", (mcp_schemas, mcp_tool_names, mermaid_system_prompt)))
                         logger.error("LLMMermaidAgent: put (ok) on init_queue; entering tool-call loop")
                         while True:
                             item = request_queue.get()
@@ -641,7 +652,8 @@ class LLMMermaidAgent(LLMAgent):
         logger.error("LLMMermaidAgent: init_queue.get() -> kind={!r}", kind)
         if kind == "error":
             raise payload
-        mcp_schemas, mcp_tool_names = payload
+        mcp_schemas, mcp_tool_names, mermaid_system_prompt = payload[0], payload[1], (payload[2] if len(payload) > 2 else None)
+        self._mermaid_system_prompt = mermaid_system_prompt
         domain_tool_count = len(self.tools)
         self.tools = list(self.tools) + [_MCPToolSchema(s) for s in mcp_schemas]
         self._mcp_tool_names = mcp_tool_names
