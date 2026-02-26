@@ -60,6 +60,8 @@ SYSTEM_PROMPT = """
 <scenario>
 {instructions}
 </scenario>
+
+DO NOT SAY OR ADD INFORMATION / REQUESTS / QUERIES OUTSIDE OF THE INSTRUCTIONS ABOVE. THIS IS ALL YOU KNOW
 """.strip()
 
 
