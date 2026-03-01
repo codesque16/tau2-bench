@@ -42,7 +42,7 @@ In each turn you can either:
 - Make a tool call.
 You cannot do both at the same time.
 
-Try to be helpful and always follow the policy. Always make sure you generate valid JSON only.
+Try to be helpful and always follow the policy.
 """.strip()
 
 SYSTEM_PROMPT = """
@@ -157,7 +157,7 @@ In each turn you can either:
 - Make a tool call.
 You cannot do both at the same time.
 
-Try to be helpful and always follow the policy. Always make sure you generate valid JSON only.
+Try to be helpful and always follow the policy.
 """.strip()
 
 SYSTEM_PROMPT_GT = """
@@ -319,7 +319,7 @@ You cannot communicate with the user, only make tool calls.
 Stop when you consider that you have solved the ticket.
 To do so, send a message containing a single tool call to the `{stop_function_name}` tool. Do not include any other tool calls in this last message.
 
-Always follow the policy. Always make sure you generate valid JSON only.
+Always follow the policy.
 """.strip()
 
 SYSTEM_PROMPT_SOLO = """

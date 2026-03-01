@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from tau2.domains.retail.utils import RETAIL_DB_PATH
 from tau2.environment.db import DB
@@ -25,6 +25,12 @@ class Product(BaseModel):
     variants: Dict[str, Variant] = Field(
         description="Dictionary of variants indexed by variant ID"
     )
+
+    # @computed_field
+    # @property
+    # def available_variants(self) -> int:
+    #     """The count of available variants for this product"""
+    #     return sum(1 for v in self.variants.values() if v.available)
 
 
 class UserName(BaseModel):
