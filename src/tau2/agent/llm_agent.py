@@ -316,8 +316,8 @@ You will be provided with a ticket that contains the user's request.
 You will need to plan and call the appropriate tools to solve the ticket.
 
 You cannot communicate with the user, only make tool calls.
-Stop when you consider that you have solved the ticket.
-To do so, send a message containing a single tool call to the `{stop_function_name}` tool. Do not include any other tool calls in this last message.
+Before stopping, you may call the `verify_completion` tool to get a reminder to confirm that all parts of the ticket have been completed.
+When you have fully solved the ticket, send a message containing a single tool call to the `{stop_function_name}` tool (or `request_done` if available). Do not include any other tool calls in this last message.
 
 Always follow the policy.
 """.strip()
@@ -342,8 +342,15 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
     """
 
     STOP_FUNCTION_NAME = "done"
+    REQUEST_DONE_FUNCTION_NAME = "request_done"
+    VERIFY_COMPLETION_FUNCTION_NAME = "verify_completion"
     TRANSFER_TOOL_NAME = "transfer_to_human_agents"
     STOP_TOKEN = "###STOP###"
+
+    VERIFY_COMPLETION_MESSAGE = (
+        "Verify that all requested actions in the ticket have been completed. "
+        "Only when you have confirmed everything is done, call the request_done tool (or done tool) to finish."
+    )
 
     def __init__(
         self,
@@ -367,13 +374,23 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
         self.validate_tools()
 
     def add_stop_tool(self) -> None:
-        """Add the stop tool to the tools."""
+        """Add the stop tool, request_done tool, and verify_completion tool to the tools."""
 
         def done() -> str:
             """Call this function when you are done with the task."""
             return self.STOP_TOKEN
 
+        def request_done() -> str:
+            """Call this function when you have completed all requested actions and verified the ticket is fully resolved."""
+            return self.STOP_TOKEN
+
+        def verify_completion() -> str:
+            """Call this to get a reminder to verify that every part of the ticket has been completed before calling request_done."""
+            return self.VERIFY_COMPLETION_MESSAGE
+
         self.tools.append(as_tool(done))
+        self.tools.append(as_tool(request_done))
+        self.tools.append(as_tool(verify_completion))
 
     def validate_tools(self) -> None:
         """Check if the tools are valid."""
@@ -382,8 +399,14 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
             logger.warning(
                 f"Tool {self.TRANSFER_TOOL_NAME} not found in tools. This tool is required for the agent to transfer the user to a human agent."
             )
-        if self.STOP_FUNCTION_NAME not in tool_names:
-            raise ValueError(f"Tool {self.STOP_FUNCTION_NAME} not found in tools.")
+        has_stop = (
+            self.STOP_FUNCTION_NAME in tool_names
+            or self.REQUEST_DONE_FUNCTION_NAME in tool_names
+        )
+        if not has_stop:
+            raise ValueError(
+                f"Neither {self.STOP_FUNCTION_NAME} nor {self.REQUEST_DONE_FUNCTION_NAME} found in tools."
+            )
 
     @classmethod
     def check_valid_task(cls, task: Task) -> bool:
@@ -391,7 +414,10 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
         Check if the task is valid.
         Task should contain a ticket and evaluation criteria.
         If the task contains an initial state, the message history should only contain tool calls and responses.
+        Tasks with solo_convertible=False (e.g. require communicating specific info to user) are excluded.
         """
+        if getattr(task, "solo_convertible", None) is False:
+            return False
         if task.initial_state is not None:
             message_history = task.initial_state.message_history or []
             for message in message_history:
@@ -423,11 +449,14 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
 
     def _check_if_stop_toolcall(self, message: AssistantMessage) -> AssistantMessage:
         """Check if the message is a stop message.
-        If the message contains a tool call with the name STOP_FUNCTION_NAME, then the message is a stop message.
+        If the message contains a tool call to done or request_done, then the message is a stop message.
         """
         is_stop = False
         for tool_call in message.tool_calls:
-            if tool_call.name == self.STOP_FUNCTION_NAME:
+            if tool_call.name in (
+                self.STOP_FUNCTION_NAME,
+                self.REQUEST_DONE_FUNCTION_NAME,
+            ):
                 is_stop = True
                 break
         if is_stop:

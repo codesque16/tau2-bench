@@ -310,6 +310,16 @@ def generate(
     ]
     tool_calls = tool_calls or None
 
+    # AssistantMessage must have either content or tool_calls; normalize empty model responses
+    has_text = content is not None and (
+        not isinstance(content, str) or content.strip() != ""
+    )
+    if not has_text and not tool_calls:
+        logger.warning(
+            "Model returned empty response (no content, no tool calls); using placeholder"
+        )
+        content = "(No response from model)"
+
     message = AssistantMessage(
         role="assistant",
         content=content,

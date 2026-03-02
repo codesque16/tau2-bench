@@ -436,6 +436,13 @@ class Task(BaseModel):
             default=None,
         ),
     ]
+    solo_convertible: Annotated[
+        Optional[bool],
+        Field(
+            description="If False, task is excluded from solo mode (e.g. requires communicating specific info to user). Default None/True means convertible.",
+            default=None,
+        ),
+    ]
 
     def __str__(self) -> str:
         lines = []

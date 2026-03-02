@@ -21,6 +21,9 @@ from tau2.domains.retail.environment import (
 )
 from tau2.domains.retail.environment import get_tasks as retail_domain_get_tasks
 from tau2.domains.retail.environment import (
+    get_tasks_retail_solo as retail_domain_get_tasks_solo,
+)
+from tau2.domains.retail.environment import (
     get_tasks_split as retail_domain_get_tasks_split,
 )
 from tau2.domains.telecom.environment import (
@@ -225,6 +228,11 @@ try:
     registry.register_tasks(
         retail_domain_get_tasks,
         "retail",
+        get_task_splits=retail_domain_get_tasks_split,
+    )
+    registry.register_tasks(
+        retail_domain_get_tasks_solo,
+        "retail_solo",
         get_task_splits=retail_domain_get_tasks_split,
     )
 
