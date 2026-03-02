@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from typing import Any, Literal, Optional
 
 import litellm
@@ -7,6 +8,12 @@ import logfire
 from litellm.caching.caching import Cache
 from litellm.main import ModelResponse, Usage
 from loguru import logger
+
+from litellm.exceptions import ServiceUnavailableError, Timeout as LitellmTimeout
+
+# Application-level retries for 503/timeout (after LiteLLM's own retries are exhausted)
+TRANSIENT_ERROR_MAX_RETRIES = 3
+TRANSIENT_ERROR_BASE_DELAY = 5
 
 from tau2.config import (
     DEFAULT_LLM_CACHE_TYPE,
@@ -249,7 +256,8 @@ def generate(
     """
     if kwargs.get("num_retries") is None:
         kwargs["num_retries"] = DEFAULT_MAX_RETRIES
-    if kwargs.get("timeout") is None:
+    timeout = kwargs.get("timeout")
+    if timeout is None or not isinstance(timeout, (int, float)) or timeout <= 0:
         kwargs["timeout"] = DEFAULT_LLM_REQUEST_TIMEOUT
 
     if model.startswith("claude") and not ALLOW_SONNET_THINKING:
@@ -268,23 +276,35 @@ def generate(
             **kwargs,
         )
 
-    try:
-        # Wrap in a named span so Logfire shows "agent" / "user" (completion nested inside)
-        if caller:
-            with logfire.span(caller) as caller_span:
+    for attempt in range(TRANSIENT_ERROR_MAX_RETRIES + 1):
+        try:
+            if caller:
+                with logfire.span(caller) as caller_span:
+                    response = _do_completion()
+                    if response.choices:
+                        msg = response.choices[0].message
+                        reasoning = getattr(msg, "reasoning_content", None)
+                        if reasoning:
+                            caller_span.set_attribute("reasoning_content", reasoning)
+                            caller_span.set_attribute("reasoning_content_length", len(reasoning))
+            else:
                 response = _do_completion()
-                # Log reasoning/thinking tokens when present (e.g. Gemini 3)
-                if response.choices:
-                    msg = response.choices[0].message
-                    reasoning = getattr(msg, "reasoning_content", None)
-                    if reasoning:
-                        caller_span.set_attribute("reasoning_content", reasoning)
-                        caller_span.set_attribute("reasoning_content_length", len(reasoning))
-        else:
-            response = _do_completion()
-    except Exception as e:
-        logger.error(e)
-        raise e
+            break
+        except (ServiceUnavailableError, LitellmTimeout) as e:
+            if attempt < TRANSIENT_ERROR_MAX_RETRIES:
+                delay = TRANSIENT_ERROR_BASE_DELAY * (2**attempt)
+                logger.warning(
+                    "Transient API error (%s), retrying in %.0fs (attempt %d/%d): %s",
+                    type(e).__name__,
+                    delay,
+                    attempt + 1,
+                    TRANSIENT_ERROR_MAX_RETRIES,
+                    e,
+                )
+                time.sleep(delay)
+            else:
+                logger.error(e)
+                raise
     cost = get_response_cost(response)
     usage = get_response_usage(response)
     response = response.choices[0]

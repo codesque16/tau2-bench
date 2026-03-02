@@ -391,7 +391,7 @@ class Orchestrator:
                 )
 
     def _get_tool_response(self, tool_call: ToolCall) -> ToolMessage:
-        """Get tool response, executing global user sim tools from user.tools or delegating to environment."""
+        """Get tool response, executing global user sim tools from user.tools, solo agent tools, or delegating to environment."""
         if (
             tool_call.requestor == "user"
             and tool_call.name in GLOBAL_USER_SIM_TOOL_NAMES
@@ -420,6 +420,28 @@ class Orchestrator:
                     role="tool",
                     error=error,
                 )
+        # Solo agent tools (verify_completion, request_done) are not in the environment;
+        # execute them here like check_for_stop for the user.
+        if (
+            self.solo_mode
+            and tool_call.requestor == "assistant"
+            and tool_call.name
+            in (
+                LLMSoloAgent.VERIFY_COMPLETION_FUNCTION_NAME,
+                LLMSoloAgent.REQUEST_DONE_FUNCTION_NAME,
+            )
+        ):
+            if tool_call.name == LLMSoloAgent.VERIFY_COMPLETION_FUNCTION_NAME:
+                content = LLMSoloAgent.VERIFY_COMPLETION_MESSAGE
+            else:
+                content = LLMSoloAgent.STOP_TOKEN
+            return ToolMessage(
+                id=tool_call.id,
+                content=content,
+                requestor=tool_call.requestor,
+                role="tool",
+                error=False,
+            )
         return self.environment.get_response(tool_call)
 
     def run(self) -> SimulationRun:

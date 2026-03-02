@@ -317,7 +317,7 @@ You will need to plan and call the appropriate tools to solve the ticket.
 
 You cannot communicate with the user, only make tool calls.
 Before stopping, you may call the `verify_completion` tool to get a reminder to confirm that all parts of the ticket have been completed.
-When you have fully solved the ticket, send a message containing a single tool call to the `{stop_function_name}` tool (or `request_done` if available). Do not include any other tool calls in this last message.
+When you have fully solved the ticket, send a message containing a single tool call to the `request_done` tool. Do not include any other tool calls in this last message.
 
 Always follow the policy.
 """.strip()
@@ -341,7 +341,6 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
     The task need to specify a ticket format.
     """
 
-    STOP_FUNCTION_NAME = "done"
     REQUEST_DONE_FUNCTION_NAME = "request_done"
     VERIFY_COMPLETION_FUNCTION_NAME = "verify_completion"
     TRANSFER_TOOL_NAME = "transfer_to_human_agents"
@@ -349,7 +348,7 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
 
     VERIFY_COMPLETION_MESSAGE = (
         "Verify that all requested actions in the ticket have been completed. "
-        "Only when you have confirmed everything is done, call the request_done tool (or done tool) to finish."
+        "Only when you have confirmed everything is done, call the request_done tool to finish."
     )
 
     def __init__(
@@ -374,21 +373,16 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
         self.validate_tools()
 
     def add_stop_tool(self) -> None:
-        """Add the stop tool, request_done tool, and verify_completion tool to the tools."""
-
-        def done() -> str:
-            """Call this function when you are done with the task."""
-            return self.STOP_TOKEN
+        """Add request_done and verify_completion tools for the solo agent."""
 
         def request_done() -> str:
-            """Call this function when you have completed all requested actions and verified the ticket is fully resolved."""
+            """Call this when you have completed all requested actions and verified the ticket is fully resolved."""
             return self.STOP_TOKEN
 
         def verify_completion() -> str:
             """Call this to get a reminder to verify that every part of the ticket has been completed before calling request_done."""
             return self.VERIFY_COMPLETION_MESSAGE
 
-        self.tools.append(as_tool(done))
         self.tools.append(as_tool(request_done))
         self.tools.append(as_tool(verify_completion))
 
@@ -399,13 +393,9 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
             logger.warning(
                 f"Tool {self.TRANSFER_TOOL_NAME} not found in tools. This tool is required for the agent to transfer the user to a human agent."
             )
-        has_stop = (
-            self.STOP_FUNCTION_NAME in tool_names
-            or self.REQUEST_DONE_FUNCTION_NAME in tool_names
-        )
-        if not has_stop:
+        if self.REQUEST_DONE_FUNCTION_NAME not in tool_names:
             raise ValueError(
-                f"Neither {self.STOP_FUNCTION_NAME} nor {self.REQUEST_DONE_FUNCTION_NAME} found in tools."
+                f"Tool {self.REQUEST_DONE_FUNCTION_NAME} not found in tools."
             )
 
     @classmethod
@@ -437,26 +427,19 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
 
     @property
     def system_prompt(self) -> str:
-        agent_instruction = AGENT_SOLO_INSTRUCTION.format(
-            stop_function_name=self.STOP_FUNCTION_NAME,
-            stop_token=self.STOP_TOKEN,
-        )
         return SYSTEM_PROMPT_SOLO.format(
-            agent_instruction=agent_instruction,
+            agent_instruction=AGENT_SOLO_INSTRUCTION,
             domain_policy=self.domain_policy,
             ticket=self.task.ticket,
         )
 
     def _check_if_stop_toolcall(self, message: AssistantMessage) -> AssistantMessage:
         """Check if the message is a stop message.
-        If the message contains a tool call to done or request_done, then the message is a stop message.
+        If the message contains a tool call to request_done, then the message is a stop message.
         """
         is_stop = False
         for tool_call in message.tool_calls:
-            if tool_call.name in (
-                self.STOP_FUNCTION_NAME,
-                self.REQUEST_DONE_FUNCTION_NAME,
-            ):
+            if tool_call.name == self.REQUEST_DONE_FUNCTION_NAME:
                 is_stop = True
                 break
         if is_stop:
