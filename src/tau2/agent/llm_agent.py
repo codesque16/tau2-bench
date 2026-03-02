@@ -532,6 +532,7 @@ class LLMMermaidAgent(LLMAgent):
         self._mcp_tool_names: set[str] = set()
         self._mcp_call_sync: Optional[callable] = None  # (name, arguments) -> str
         self._mermaid_system_prompt: Optional[str] = None  # set from load_graph result when MCP is used
+        self._turn_count = 0
 
         # Unconditional print so we see something even when log_level=ERROR filters everything else
         print(f"[LLMMermaidAgent] init mcp_server_url={mcp_server_url!r} will_init_mcp={bool(self._mcp_server_url)}", file=sys.stderr, flush=True)
@@ -615,7 +616,7 @@ class LLMMermaidAgent(LLMAgent):
                         mermaid_system_prompt = load_data.get("system_prompt")
                         mcp_schemas = [
                             s for s in mcp_schemas
-                            if (s.get("function") or {}).get("name") != "load_graph"
+                            if (s.get("function") or {}).get("name") not in ["load_graph", "get_todos"]
                         ]
                         mcp_tool_names = {s["function"]["name"] for s in mcp_schemas}
                         logger.error(
@@ -694,6 +695,19 @@ class LLMMermaidAgent(LLMAgent):
             state.messages.append(message)
         messages = state.system_messages + state.messages
 
+        self._turn_count += 1
+        if self._turn_count % 3 == 0:
+            print(f"--- Processed {self._turn_count} messages -> Reminder Inserted ---", file=sys.stderr, flush=True)
+
+            todos = self._mcp_call_sync("get_todos", {})
+
+            sys_msg = UserMessage(
+                    content=f"<system_reminder> GREEDY TRAVERSAL, ALWAYS call goto_node() with valid_next_node for maximum context.\n Update todos if required: {todos} </system_reminder>",
+                    requestor="assistant",
+                    role="user",
+                )
+            state.messages.append(sys_msg)
+
         while True:
             assistant_message = generate(
                 model=self.llm,
@@ -702,6 +716,7 @@ class LLMMermaidAgent(LLMAgent):
                 caller="agent",
                 **self.llm_args,
             )
+
             state.messages.append(assistant_message)
 
             if not assistant_message.is_tool_call():
@@ -716,11 +731,19 @@ class LLMMermaidAgent(LLMAgent):
                 result = self._call_mcp_sync(tc.name, tc.arguments)
                 tool_msg = ToolMessage(
                     id=tc.id,
-                    content=result,
+                    content="{}",
                     requestor="assistant",
                     role="tool",
                 )
                 state.messages.append(tool_msg)
+
+                sys_msg = UserMessage(
+                    content=f"<system_message> \n{result} \n</system_message>",
+                    requestor="assistant",
+                    role="user",
+                )
+                state.messages.append(sys_msg)
+                
                 if trajectory_sink is not None:
                     trajectory_sink(tool_msg)
             messages = state.system_messages + state.messages

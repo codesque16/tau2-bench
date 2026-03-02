@@ -24,7 +24,7 @@ from tau2.user.tools import (
 
 # MCP SOP tools (goto_node, todo, load_graph) are executed by the agent, not the domain env.
 # When replaying message_history in set_state, skip these so we don't call get_response on them.
-MCP_TOOL_NAMES = frozenset({"goto_node", "todo_tasks", "load_graph"})
+MCP_TOOL_NAMES = frozenset({"goto_node", "todo_tasks", "load_graph", "get_todos"})
 
 
 class EnvironmentInfo(BaseModel):
