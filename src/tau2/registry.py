@@ -235,6 +235,11 @@ try:
         "retail_solo",
         get_task_splits=retail_domain_get_tasks_split,
     )
+    registry.register_tasks(
+        retail_domain_get_tasks_solo,
+        "retail_solo_all",
+        get_task_splits=retail_domain_get_tasks_split,
+    )
 
     registry.register_domain(telecom_domain_get_environment_manual_policy, "telecom")
     registry.register_domain(

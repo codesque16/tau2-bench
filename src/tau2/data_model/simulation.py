@@ -196,6 +196,13 @@ class RunConfig(BaseModel):
             default=None,
         ),
     ]
+    solo_eval_db_only: Annotated[
+        bool,
+        Field(
+            description="When True (e.g. task set retail_solo_all), include all solo tasks and evaluate using only DB/env state, omitting the communicate_info check.",
+            default=False,
+        ),
+    ]
 
     def validate(self) -> None:
         """

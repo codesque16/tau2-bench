@@ -358,13 +358,18 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
         task: Task,
         llm: Optional[str] = None,
         llm_args: Optional[dict] = None,
+        solo_eval_db_only: bool = False,
     ):
         """
         Initialize the LLMAgent.
+        When solo_eval_db_only is True, tasks with solo_convertible=False are allowed
+        (evaluation will use DB state only, omitting communicate check).
         """
         super().__init__(tools=tools, domain_policy=domain_policy)
-        assert self.check_valid_task(task), (
-            f"Task {task.id} is not valid. Cannot run GT agent."
+        assert self.check_valid_task(
+            task, allow_solo_convertible_false=solo_eval_db_only
+        ), (
+            f"Task {task.id} is not valid. Cannot run solo agent."
         )
         self.task = task
         self.llm = llm
@@ -399,14 +404,19 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
             )
 
     @classmethod
-    def check_valid_task(cls, task: Task) -> bool:
+    def check_valid_task(
+        cls, task: Task, allow_solo_convertible_false: bool = False
+    ) -> bool:
         """
         Check if the task is valid.
         Task should contain a ticket and evaluation criteria.
         If the task contains an initial state, the message history should only contain tool calls and responses.
-        Tasks with solo_convertible=False (e.g. require communicating specific info to user) are excluded.
+        Tasks with solo_convertible=False (e.g. require communicating specific info to user) are excluded
+        unless allow_solo_convertible_false is True (e.g. when using solo_eval_db_only).
         """
-        if getattr(task, "solo_convertible", None) is False:
+        if not allow_solo_convertible_false and getattr(
+            task, "solo_convertible", None
+        ) is False:
             return False
         if task.initial_state is not None:
             message_history = task.initial_state.message_history or []
@@ -475,6 +485,12 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
             messages=message_history,
         )
 
+    # Dummy user message for first turn so Gemini (and similar APIs) get valid structure:
+    # "function call turn must come immediately after a user turn or a function response turn"
+    _SOLO_FIRST_TURN_USER_MESSAGE = (
+        "Begin. Use the tools to complete the ticket."
+    )
+
     def generate_next_message(
         self,
         message: Optional[ValidAgentInputMessage],
@@ -490,6 +506,11 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
             state.messages.extend(message.tool_messages)
         elif message is None:
             assert len(state.messages) == 0, "Message history should be empty"
+            # Inject a dummy user turn so the first assistant (tool_calls) follows a user
+            # turn; required by Gemini and similar APIs.
+            state.messages.append(
+                UserMessage(role="user", content=self._SOLO_FIRST_TURN_USER_MESSAGE)
+            )
         else:
             state.messages.append(message)
         messages = state.system_messages + state.messages

@@ -177,6 +177,13 @@ def add_run_args(parser):
         default=None,
         help="SOP file or agent name for MCP load_graph (e.g. retail). Only used when --agent is llm_mermaid_agent.",
     )
+    parser.add_argument(
+        "--solo-eval-db-only",
+        dest="solo_eval_db_only",
+        action="store_true",
+        default=False,
+        help="For solo agent: include all tasks (including solo_convertible=false) and evaluate using only DB/env state, omitting the communicate_info check. Set automatically when --task-set-name is retail_solo_all.",
+    )
 
 
 def main():
@@ -193,6 +200,9 @@ def main():
         mcp_server_url = getattr(args, "mcp_server_url", None)
         mcp_sop_file = getattr(args, "mcp_sop_file", None)
         print(f"[CLI] mcp_server_url={mcp_server_url!r} mcp_sop_file={mcp_sop_file!r}", file=sys.stderr, flush=True)
+        solo_eval_db_only = getattr(args, "solo_eval_db_only", False) or (
+            getattr(args, "task_set_name", None) == "retail_solo_all"
+        )
         return run_domain(
             RunConfig(
                 domain=args.domain,
@@ -218,6 +228,7 @@ def main():
                 service_name=args.service_name,
                 mcp_server_url=mcp_server_url,
                 mcp_sop_file=mcp_sop_file,
+                solo_eval_db_only=solo_eval_db_only,
             )
         )
 

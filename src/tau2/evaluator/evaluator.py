@@ -24,6 +24,7 @@ def evaluate_simulation(
     evaluation_type: EvaluationType,
     solo_mode: bool,
     domain: str,
+    solo_eval_db_only: bool = False,
 ) -> RewardInfo:
     """
     Evaluate the simulation based on the evaluation type.
@@ -96,6 +97,8 @@ def evaluate_simulation(
         nl_bases = {RewardType.NL_ASSERTION}
         comm_bases = {RewardType.COMMUNICATE}
         task_reward_basis = set(task.evaluation_criteria.reward_basis)
+        if solo_eval_db_only:
+            task_reward_basis = task_reward_basis - comm_bases
 
         reward_breakdown = {}
         if task_reward_basis & env_bases:
@@ -127,7 +130,7 @@ def evaluate_simulation(
             nl_assertions=nl_reward_info.nl_assertions
             if nl_reward_info is not None
             else None,
-            communicate_checks=communicate_reward_info.communicate_checks,
+            communicate_checks=None if solo_eval_db_only else communicate_reward_info.communicate_checks,
             reward_basis=task.evaluation_criteria.reward_basis,
             reward_breakdown=reward_breakdown,
             info={

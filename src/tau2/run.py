@@ -170,12 +170,18 @@ def run_domain(config: RunConfig) -> Results:
             style="bold green",
         )
         ConsoleDisplay.console.print(console_text)
-    if "solo" in config.agent:
+    if "solo" in config.agent and not getattr(config, "solo_eval_db_only", False):
         total_num_tasks = len(tasks)
         tasks = [task for task in tasks if LLMSoloAgent.check_valid_task(task)]
         num_tasks = len(tasks)
         console_text = Text(
             text=f"Running {num_tasks} out of {total_num_tasks} tasks for solo agent.",
+            style="bold green",
+        )
+        ConsoleDisplay.console.print(console_text)
+    elif "solo" in config.agent and getattr(config, "solo_eval_db_only", False):
+        console_text = Text(
+            text=f"Running all {len(tasks)} tasks (solo_eval_db_only: evaluate DB state only, omit communicate check).",
             style="bold green",
         )
         ConsoleDisplay.console.print(console_text)
@@ -216,6 +222,7 @@ def run_domain(config: RunConfig) -> Results:
             enforce_communication_protocol=config.enforce_communication_protocol,
             mcp_server_url=config.mcp_server_url,
             mcp_sop_file=config.mcp_sop_file,
+            solo_eval_db_only=getattr(config, "solo_eval_db_only", False),
         )
         metrics = compute_metrics(simulation_results)
         # Dedicated metrics span for evaluation results (nested under top span)
@@ -259,6 +266,7 @@ def run_tasks(
     enforce_communication_protocol: bool = False,
     mcp_server_url: Optional[str] = None,
     mcp_sop_file: Optional[str] = None,
+    solo_eval_db_only: bool = False,
 ) -> Results:
     """
     Runs tasks for a given domain.
@@ -451,6 +459,7 @@ def run_tasks(
                         enforce_communication_protocol=enforce_communication_protocol,
                         mcp_server_url=mcp_server_url,
                         mcp_sop_file=mcp_sop_file,
+                        solo_eval_db_only=solo_eval_db_only,
                     )
                 # Nested span: evaluation (what passed/failed, reward, reasons)
                 _log_evaluation_span(simulation)
@@ -536,6 +545,7 @@ def run_task(
     enforce_communication_protocol: bool = False,
     mcp_server_url: Optional[str] = None,
     mcp_sop_file: Optional[str] = None,
+    solo_eval_db_only: bool = False,
 ) -> SimulationRun:
     """
     Runs tasks for a given domain.
@@ -607,6 +617,7 @@ def run_task(
             llm=llm_agent,
             llm_args=llm_args_agent,
             task=task,
+            solo_eval_db_only=solo_eval_db_only,
         )
     elif issubclass(AgentConstructor, GymAgent):
         agent = AgentConstructor(
@@ -656,6 +667,7 @@ def run_task(
         simulation=simulation,
         evaluation_type=evaluation_type,
         solo_mode=solo_mode,
+        solo_eval_db_only=solo_eval_db_only,
     )
 
     simulation.reward_info = reward_info
