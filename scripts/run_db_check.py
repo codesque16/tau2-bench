@@ -13,6 +13,8 @@ Usage:
   Optional:
     --tasks path/to/tasks.json   Use this task set instead of the simulation's embedded tasks.
     --verbose                    When db_match is False, print agent/user hashes.
+    --diff                       When db_match is False, print structural diff of gold vs predicted agent DB (implies --verbose).
+    --solo-mode                  Run environments in solo_mode (e.g. retail_solo style).
 """
 from __future__ import annotations
 
@@ -27,6 +29,7 @@ try:
     from tau2.data_model.tasks import Task
     from tau2.domains.retail.environment import get_environment
     from tau2.environment.environment import Environment
+    from tau2.utils.utils import show_dict_diff
 except ImportError:
     print("Set PYTHONPATH to tau2-bench/src (e.g. PYTHONPATH=src python scripts/run_db_check.py ...)", file=sys.stderr)
     sys.exit(1)
@@ -61,7 +64,7 @@ def run_db_check(
     except Exception as e:
         return False, 0.0, {"error": "predicted set_state failed", "message": str(e)}
 
-    gold_environment: Environment = environment_constructor()
+    gold_environment: Environment = environment_constructor(solo_mode=solo_mode)
     gold_environment.set_state(
         initialization_data=initialization_data,
         initialization_actions=initialization_actions,
@@ -95,6 +98,11 @@ def run_db_check(
         info["gold_user_db_hash"] = user_db_hash
         info["predicted_user_db_hash"] = predicted_user_db_hash
 
+    # Optionally attach DB dumps for diffing (retail: env.tools.db)
+    if verbose and not db_match and hasattr(predicted_environment.tools, "db") and hasattr(gold_environment.tools, "db"):
+        info["gold_agent_db_dump"] = gold_environment.tools.db.model_dump()
+        info["predicted_agent_db_dump"] = predicted_environment.tools.db.model_dump()
+
     return db_match, db_reward, info
 
 
@@ -114,7 +122,19 @@ def main() -> None:
     parser.add_argument("--task-id", type=str, required=True, help="Task ID (e.g. 27).")
     parser.add_argument("--tasks", type=Path, default=None, help="Optional path to tasks.json (else use simulation's tasks).")
     parser.add_argument("--verbose", action="store_true", help="Print hashes when db_match is False.")
+    parser.add_argument(
+        "--solo-mode",
+        action="store_true",
+        help="Run environments in solo_mode (e.g. retail_solo style).",
+    )
+    parser.add_argument(
+        "--diff",
+        action="store_true",
+        help="When db_match is False, print a structural diff of gold vs predicted agent DB (implies --verbose).",
+    )
     args = parser.parse_args()
+    if args.diff:
+        args.verbose = True
 
     if not args.simulation.exists():
         print(f"Error: simulation file not found: {args.simulation}", file=sys.stderr)
@@ -147,17 +167,23 @@ def main() -> None:
         task=task,
         full_trajectory=run.messages,
         environment_constructor=env_constructor,
-        solo_mode=False,
+        solo_mode=bool(args.solo_mode),
         verbose=args.verbose,
     )
 
     print("db_match:", db_match)
     print("db_reward:", db_reward)
     for k, v in info.items():
+        if k in ("gold_agent_db_dump", "predicted_agent_db_dump"):
+            continue
         if k.endswith("_hash") and v is not None and len(str(v)) > 64:
             print(f"{k}: {str(v)[:32]}...")
         else:
             print(f"{k}: {v}")
+
+    if args.diff and not db_match and "gold_agent_db_dump" in info and "predicted_agent_db_dump" in info:
+        print("\n--- Agent DB diff (gold vs predicted) ---")
+        print(show_dict_diff(info["gold_agent_db_dump"], info["predicted_agent_db_dump"]))
 
     sys.exit(0 if db_match else 1)
 

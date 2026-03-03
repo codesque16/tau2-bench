@@ -83,8 +83,8 @@ class EnvironmentEvaluator(EvaluatorBase):
             ) and message.is_tool_call():
                 predicted_tool_calls.extend(message.tool_calls)
 
-        # Setting up gold environment
-        gold_environment = environment_constructor()
+        # Setting up gold environment (use same solo_mode as predicted for consistent comparison)
+        gold_environment = environment_constructor(solo_mode=solo_mode)
         gold_environment.set_state(
             initialization_data=initialization_data,
             initialization_actions=initialization_actions,
