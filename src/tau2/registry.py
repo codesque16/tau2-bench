@@ -5,7 +5,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from tau2.agent.base import BaseAgent
-from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMMermaidAgent, LLMSoloAgent
+from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMMermaidAgent, LLMSoloAgent, LLMSoloAgent2
 from tau2.data_model.tasks import Task
 from tau2.domains.airline.environment import (
     get_environment as airline_domain_get_environment,
@@ -212,6 +212,7 @@ try:
     registry.register_agent(LLMAgent, "llm_agent")
     registry.register_agent(LLMGTAgent, "llm_agent_gt")
     registry.register_agent(LLMSoloAgent, "llm_agent_solo")
+    registry.register_agent(LLMSoloAgent2, "llm_agent_solo2")
     registry.register_agent(LLMMermaidAgent, "llm_mermaid_agent")
 
     registry.register_domain(mock_domain_get_environment, "mock")

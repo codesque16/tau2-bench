@@ -20,7 +20,9 @@ def is_solo_mode(results: Results) -> bool:
     """Checks if the solo mode is the same for all the tasks."""
     agent_implementation = results.info.agent_info.implementation
     user_implementation = results.info.user_info.implementation
-    if agent_implementation == "llm_agent_solo" and user_implementation == "dummy_user":
+    if user_implementation != "dummy_user":
+        return False
+    if agent_implementation in ("llm_agent_solo", "llm_agent_solo2"):
         return True
     return False
 

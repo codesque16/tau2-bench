@@ -9,7 +9,7 @@ from typing import Optional
 import logfire
 from loguru import logger
 
-from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMMermaidAgent, LLMSoloAgent
+from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMMermaidAgent, LLMSoloAgent, LLMSoloAgent2
 from tau2.data_model.simulation import (
     AgentInfo,
     Info,
@@ -172,7 +172,8 @@ def run_domain(config: RunConfig) -> Results:
         ConsoleDisplay.console.print(console_text)
     if "solo" in config.agent and not getattr(config, "solo_eval_db_only", False):
         total_num_tasks = len(tasks)
-        tasks = [task for task in tasks if LLMSoloAgent.check_valid_task(task)]
+        check_solo = LLMSoloAgent2.check_valid_task if config.agent == "llm_agent_solo2" else LLMSoloAgent.check_valid_task
+        tasks = [task for task in tasks if check_solo(task)]
         num_tasks = len(tasks)
         console_text = Text(
             text=f"Running {num_tasks} out of {total_num_tasks} tasks for solo agent.",
@@ -609,6 +610,52 @@ def run_task(
         )
     elif issubclass(AgentConstructor, LLMSoloAgent):
         solo_mode = True
+        if not AgentConstructor.check_valid_task(
+            task, allow_solo_convertible_false=solo_eval_db_only
+        ):
+            logger.warning(
+                f"Task {task.id} is not valid for solo agent (solo_convertible=false or no expected actions); skipping."
+            )
+            return SimulationRun(
+                id=str(uuid.uuid4()),
+                task_id=task.id,
+                start_time=get_now(),
+                end_time=get_now(),
+                duration=0.0,
+                termination_reason=TerminationReason.AGENT_ERROR,
+                reward_info=RewardInfo(reward=0.0),
+                messages=[],
+                error="Task not valid for solo agent (solo_convertible=false or no expected actions).",
+            )
+        environment: Environment = environment_constructor(solo_mode=True)
+        user_tools = environment.get_user_tools() if environment.user_tools else []
+        agent = AgentConstructor(
+            tools=environment.get_tools() + user_tools,
+            domain_policy=environment.get_policy(),
+            llm=llm_agent,
+            llm_args=llm_args_agent,
+            task=task,
+            solo_eval_db_only=solo_eval_db_only,
+        )
+    elif issubclass(AgentConstructor, LLMSoloAgent2):
+        solo_mode = True
+        if not AgentConstructor.check_valid_task(
+            task, allow_solo_convertible_false=solo_eval_db_only
+        ):
+            logger.warning(
+                f"Task {task.id} is not valid for solo2 agent (solo_convertible=false or no expected actions); skipping."
+            )
+            return SimulationRun(
+                id=str(uuid.uuid4()),
+                task_id=task.id,
+                start_time=get_now(),
+                end_time=get_now(),
+                duration=0.0,
+                termination_reason=TerminationReason.AGENT_ERROR,
+                reward_info=RewardInfo(reward=0.0),
+                messages=[],
+                error="Task not valid for solo2 agent (solo_convertible=false or no expected actions).",
+            )
         environment: Environment = environment_constructor(solo_mode=True)
         user_tools = environment.get_user_tools() if environment.user_tools else []
         agent = AgentConstructor(
@@ -626,7 +673,7 @@ def run_task(
         )
     else:
         raise ValueError(
-            f"Unknown agent type: {AgentConstructor}. Should be LLMAgent or LLMSoloAgent"
+            f"Unknown agent type: {AgentConstructor}. Should be LLMAgent, LLMSoloAgent, or LLMSoloAgent2"
         )
     try:
         domain_user_tools = environment.get_user_tools()
@@ -636,9 +683,9 @@ def run_task(
 
     UserConstructor = registry.get_user_constructor(user)
     if issubclass(UserConstructor, DummyUser):
-        assert isinstance(
-            agent, LLMSoloAgent
-        ), "Dummy user can only be used with solo agent"
+        assert isinstance(agent, (LLMSoloAgent, LLMSoloAgent2)), (
+            "Dummy user can only be used with solo agent (llm_agent_solo or llm_agent_solo2)"
+        )
 
     user = UserConstructor(
         tools=user_tools,

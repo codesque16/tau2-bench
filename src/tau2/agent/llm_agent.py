@@ -538,6 +538,161 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
         self.llm_args["seed"] = seed
 
 
+AGENT_SOLO2_INSTRUCTION = """
+You are a customer service agent that helps the user according to the <policy> provided below.
+You will be provided with a ticket that contains the user's request.
+Complete all the tasks and respond to the user in 1 single reply.
+
+You cannot communicate with the user until you have finished all tool calls.
+Use the appropriate tools to complete the ticket; when you are done with all tool calls, send a single final message to the user summarizing what you did.
+
+Always follow the policy.
+""".strip()
+
+SYSTEM_PROMPT_SOLO2 = """
+<instructions>
+{agent_instruction}
+</instructions>
+<policy>
+{domain_policy}
+</policy>
+<ticket>
+{ticket}
+</ticket>
+""".strip()
+
+
+class LLMSoloAgent2(LocalAgent[LLMAgentState]):
+    """
+    Solo LLM agent that completes all tasks then sends one final reply.
+    No verify_completion or request_done tools; simulation stops when the agent
+    sends a message with no tool calls (the final reply to the user).
+    """
+
+    TRANSFER_TOOL_NAME = "transfer_to_human_agents"
+
+    def __init__(
+        self,
+        tools: List[Tool],
+        domain_policy: str,
+        task: Task,
+        llm: Optional[str] = None,
+        llm_args: Optional[dict] = None,
+        solo_eval_db_only: bool = False,
+    ):
+        super().__init__(tools=tools, domain_policy=domain_policy)
+        assert self.check_valid_task(
+            task, allow_solo_convertible_false=solo_eval_db_only
+        ), (
+            f"Task {task.id} is not valid. Cannot run solo agent."
+        )
+        self.task = task
+        self.llm = llm
+        self.llm_args = llm_args if llm_args is not None else {}
+        self.validate_tools()
+
+    def validate_tools(self) -> None:
+        """Check for expected tools (no request_done required)."""
+        tool_names = {tool.name for tool in self.tools}
+        if self.TRANSFER_TOOL_NAME not in tool_names:
+            logger.warning(
+                f"Tool {self.TRANSFER_TOOL_NAME} not found in tools. This tool is required for the agent to transfer the user to a human agent."
+            )
+
+    @classmethod
+    def check_valid_task(
+        cls, task: Task, allow_solo_convertible_false: bool = False
+    ) -> bool:
+        """Same as LLMSoloAgent: task must have ticket and evaluation criteria."""
+        if not allow_solo_convertible_false and getattr(
+            task, "solo_convertible", None
+        ) is False:
+            return False
+        if task.initial_state is not None:
+            message_history = task.initial_state.message_history or []
+            for message in message_history:
+                if isinstance(message, UserMessage):
+                    return False
+                if isinstance(message, AssistantMessage) and not message.is_tool_call():
+                    return False
+            return True
+        if task.ticket is None:
+            return False
+        if task.evaluation_criteria is None:
+            return False
+        expected_actions = task.evaluation_criteria.actions or []
+        if len(expected_actions) == 0:
+            return False
+        return True
+
+    @property
+    def system_prompt(self) -> str:
+        return SYSTEM_PROMPT_SOLO2.format(
+            agent_instruction=AGENT_SOLO2_INSTRUCTION,
+            domain_policy=self.domain_policy,
+            ticket=self.task.ticket,
+        )
+
+    @classmethod
+    def is_stop(cls, message: AssistantMessage) -> bool:
+        """Stop when the agent sends a reply with no tool calls (final reply to user)."""
+        return not message.is_tool_call()
+
+    def get_init_state(
+        self, message_history: Optional[list[Message]] = None
+    ) -> LLMAgentState:
+        if message_history is None:
+            message_history = []
+        assert all(is_valid_agent_history_message(m) for m in message_history), (
+            "Message history must contain only AssistantMessage, UserMessage, or ToolMessage to Agent."
+        )
+        return LLMAgentState(
+            system_messages=[SystemMessage(role="system", content=self.system_prompt)],
+            messages=message_history,
+        )
+
+    _SOLO2_FIRST_TURN_USER_MESSAGE = (
+        "Complete all the tasks and respond to the user in 1 single reply,"
+    )
+
+    def generate_next_message(
+        self,
+        message: Optional[ValidAgentInputMessage],
+        state: LLMAgentState,
+        trajectory_sink: Optional[Callable[[Message], None]] = None,
+    ) -> tuple[AssistantMessage, LLMAgentState]:
+        if isinstance(message, UserMessage):
+            raise ValueError("LLMSoloAgent2 does not support user messages.")
+        if isinstance(message, MultiToolMessage):
+            state.messages.extend(message.tool_messages)
+        elif message is None:
+            assert len(state.messages) == 0, "Message history should be empty"
+            state.messages.append(
+                UserMessage(role="user", content=self._SOLO2_FIRST_TURN_USER_MESSAGE)
+            )
+        else:
+            state.messages.append(message)
+        messages = state.system_messages + state.messages
+        # Allow either tool calls or a final text reply (no tool_choice="required")
+        assistant_message = generate(
+            model=self.llm,
+            tools=self.tools,
+            messages=messages,
+            caller="agent",
+            **self.llm_args,
+        )
+        state.messages.append(assistant_message)
+        return assistant_message, state
+
+    def set_seed(self, seed: int):
+        if self.llm is None:
+            raise ValueError("LLM is not set")
+        cur_seed = self.llm_args.get("seed", None)
+        if cur_seed is not None:
+            logger.warning(f"Seed is already set to {cur_seed}, resetting it to {seed}")
+        self.llm_args["seed"] = seed
+
+
 class LLMMermaidAgent(LLMAgent):
     """
     LLM agent that adds MCP SOP tools (e.g. goto_node, todo) and runs them via the MCP server.
