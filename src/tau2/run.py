@@ -9,7 +9,7 @@ from typing import Optional
 import logfire
 from loguru import logger
 
-from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMMermaidAgent, LLMSoloAgent, LLMSoloAgent2
+from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMMermaidAgent, LLMMermaidSoloAgent2, LLMSoloAgent, LLMSoloAgent2
 from tau2.data_model.simulation import (
     AgentInfo,
     Info,
@@ -172,7 +172,12 @@ def run_domain(config: RunConfig) -> Results:
         ConsoleDisplay.console.print(console_text)
     if "solo" in config.agent and not getattr(config, "solo_eval_db_only", False):
         total_num_tasks = len(tasks)
-        check_solo = LLMSoloAgent2.check_valid_task if config.agent == "llm_agent_solo2" else LLMSoloAgent.check_valid_task
+        if config.agent == "llm_agent_solo2":
+            check_solo = LLMSoloAgent2.check_valid_task
+        elif config.agent == "llm_mermaid_solo_agent":
+            check_solo = LLMMermaidSoloAgent2.check_valid_task
+        else:
+            check_solo = LLMSoloAgent.check_valid_task
         tasks = [task for task in tasks if check_solo(task)]
         num_tasks = len(tasks)
         console_text = Text(
@@ -597,8 +602,40 @@ def run_task(
     AgentConstructor = registry.get_agent_constructor(agent)
 
     solo_mode = False
+    # Check LLMMermaidSoloAgent2 before LLMMermaidAgent (subclass)
+    if issubclass(AgentConstructor, LLMMermaidSoloAgent2):
+        solo_mode = True
+        if not AgentConstructor.check_valid_task(
+            task, allow_solo_convertible_false=solo_eval_db_only
+        ):
+            logger.warning(
+                f"Task {task.id} is not valid for mermaid solo agent (solo_convertible=false or no expected actions); skipping."
+            )
+            return SimulationRun(
+                id=str(uuid.uuid4()),
+                task_id=task.id,
+                start_time=get_now(),
+                end_time=get_now(),
+                duration=0.0,
+                termination_reason=TerminationReason.AGENT_ERROR,
+                reward_info=RewardInfo(reward=0.0),
+                messages=[],
+                error="Task not valid for mermaid solo agent (solo_convertible=false or no expected actions).",
+            )
+        environment: Environment = environment_constructor(solo_mode=True)
+        user_tools = environment.get_user_tools() if environment.user_tools else []
+        agent = AgentConstructor(
+            tools=environment.get_tools() + user_tools,
+            domain_policy=environment.get_policy(),
+            llm=llm_agent,
+            llm_args=llm_args_agent,
+            task=task,
+            mcp_server_url=mcp_server_url or "",
+            sop_file=mcp_sop_file or "",
+            solo_eval_db_only=solo_eval_db_only,
+        )
     # Check LLMMermaidAgent before LLMAgent (LLMMermaidAgent subclasses LLMAgent)
-    if issubclass(AgentConstructor, LLMMermaidAgent):
+    elif issubclass(AgentConstructor, LLMMermaidAgent):
         agent = AgentConstructor(
             tools=environment.get_tools(),
             domain_policy=environment.get_policy(),
@@ -687,7 +724,7 @@ def run_task(
         )
     else:
         raise ValueError(
-            f"Unknown agent type: {AgentConstructor}. Should be LLMAgent, LLMSoloAgent, or LLMSoloAgent2"
+            f"Unknown agent type: {AgentConstructor}. Should be LLMAgent, LLMSoloAgent, LLMSoloAgent2, LLMMermaidAgent, or LLMMermaidSoloAgent2"
         )
     try:
         domain_user_tools = environment.get_user_tools()
@@ -697,8 +734,8 @@ def run_task(
 
     UserConstructor = registry.get_user_constructor(user)
     if issubclass(UserConstructor, DummyUser):
-        assert isinstance(agent, (LLMSoloAgent, LLMSoloAgent2)), (
-            "Dummy user can only be used with solo agent (llm_agent_solo or llm_agent_solo2)"
+        assert isinstance(agent, (LLMSoloAgent, LLMSoloAgent2, LLMMermaidSoloAgent2)), (
+            "Dummy user can only be used with solo agent (llm_agent_solo, llm_agent_solo2, or llm_mermaid_solo_agent)"
         )
 
     user = UserConstructor(

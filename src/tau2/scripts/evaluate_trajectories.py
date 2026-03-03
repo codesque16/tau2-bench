@@ -22,7 +22,7 @@ def is_solo_mode(results: Results) -> bool:
     user_implementation = results.info.user_info.implementation
     if user_implementation != "dummy_user":
         return False
-    if agent_implementation in ("llm_agent_solo", "llm_agent_solo2"):
+    if agent_implementation in ("llm_agent_solo", "llm_agent_solo2", "llm_mermaid_solo_agent"):
         return True
     return False
 

@@ -8,7 +8,7 @@ from typing import Any, List, Optional
 from loguru import logger
 
 from tau2.agent.base import AgentError, BaseAgent, is_valid_agent_history_message
-from tau2.agent.llm_agent import LLMSoloAgent, LLMSoloAgent2
+from tau2.agent.llm_agent import LLMMermaidSoloAgent2, LLMSoloAgent, LLMSoloAgent2
 from tau2.data_model.message import (
     AssistantMessage,
     Message,
@@ -166,9 +166,9 @@ class Orchestrator:
         if self.solo_mode:
             assert self.environment.solo_mode, "Environment should be in solo mode"
             assert (
-                isinstance(self.agent, (LLMSoloAgent, LLMSoloAgent2))
+                isinstance(self.agent, (LLMSoloAgent, LLMSoloAgent2, LLMMermaidSoloAgent2))
                 or self.agent.__class__.__name__ == "GymAgent"
-            ), "Agent must be a LLMSoloAgent, LLMSoloAgent2, or GymAgent in solo mode"
+            ), "Agent must be a LLMSoloAgent, LLMSoloAgent2, LLMMermaidSoloAgent2, or GymAgent in solo mode"
             assert isinstance(
                 self.user, DummyUser
             ), "User must be a DummyUser in solo mode"

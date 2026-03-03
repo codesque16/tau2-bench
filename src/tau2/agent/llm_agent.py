@@ -935,3 +935,156 @@ class LLMMermaidAgent(LLMAgent):
                 if trajectory_sink is not None:
                     trajectory_sink(tool_msg)
             messages = state.system_messages + state.messages
+
+
+class LLMMermaidSoloAgent2(LLMMermaidAgent):
+    """
+    Solo LLM agent with Mermaid SOP tools (same as LLMSoloAgent2 behavior, but uses
+    MCP load_graph + goto_node/todo and mermaid system prompt). Completes all tasks
+    then sends one final reply; simulation stops when the agent sends a message
+    with no tool calls.
+    """
+
+    def __init__(
+        self,
+        tools: List[Tool],
+        domain_policy: str,
+        task: Task,
+        llm: Optional[str] = None,
+        llm_args: Optional[dict] = None,
+        mcp_server_url: str = "",
+        sop_file: str = "retail",
+        solo_eval_db_only: bool = False,
+    ):
+        super().__init__(
+            tools=tools,
+            domain_policy=domain_policy,
+            llm=llm,
+            llm_args=llm_args,
+            mcp_server_url=mcp_server_url,
+            sop_file=sop_file,
+        )
+        assert self.check_valid_task(
+            task, allow_solo_convertible_false=solo_eval_db_only
+        ), (
+            f"Task {task.id} is not valid. Cannot run solo agent."
+        )
+        self.task = task
+        self.solo_eval_db_only = solo_eval_db_only
+
+    @classmethod
+    def check_valid_task(
+        cls, task: Task, allow_solo_convertible_false: bool = False
+    ) -> bool:
+        """Same as LLMSoloAgent2: task must have ticket and evaluation criteria."""
+        if not allow_solo_convertible_false and getattr(
+            task, "solo_convertible", None
+        ) is False:
+            return False
+        if task.initial_state is not None:
+            message_history = task.initial_state.message_history or []
+            for message in message_history:
+                if isinstance(message, UserMessage):
+                    return False
+                if isinstance(message, AssistantMessage) and not message.is_tool_call():
+                    return False
+            return True
+        if task.ticket is None:
+            return False
+        if task.evaluation_criteria is None:
+            return False
+        expected_actions = task.evaluation_criteria.actions or []
+        if len(expected_actions) == 0:
+            return False
+        return True
+
+    @property
+    def system_prompt(self) -> str:
+        base = (
+            self._mermaid_system_prompt.strip()
+            if self._mermaid_system_prompt
+            else SYSTEM_PROMPT_MERMAID.format(domain_policy=self.domain_policy)
+        )
+        ticket = (self.task.ticket or "").strip()
+        return f"{base}\n\n<ticket>\n{ticket}\n</ticket>"
+
+    @classmethod
+    def is_stop(cls, message: AssistantMessage) -> bool:
+        """Stop when the agent sends a reply with no tool calls (final reply to user)."""
+        return not message.is_tool_call()
+
+    _SOLO_FIRST_TURN_USER_MESSAGE = (
+        "Complete all the tasks and respond to the user in 1 single reply."
+    )
+
+    def generate_next_message(
+        self,
+        message: Optional[ValidAgentInputMessage],
+        state: LLMAgentState,
+        trajectory_sink: Optional[Callable[[Message], None]] = None,
+    ) -> tuple[AssistantMessage, LLMAgentState]:
+        if isinstance(message, UserMessage):
+            raise ValueError("LLMMermaidSoloAgent2 does not support user messages.")
+        if isinstance(message, MultiToolMessage):
+            state.messages.extend(message.tool_messages)
+        elif message is None:
+            assert len(state.messages) == 0, "Message history should be empty"
+            state.messages.append(
+                UserMessage(role="user", content=self._SOLO_FIRST_TURN_USER_MESSAGE)
+            )
+        else:
+            state.messages.append(message)
+        messages = state.system_messages + state.messages
+
+        self._turn_count += 1
+        if self._turn_count % 3 == 0 and self._mcp_call_sync is not None:
+            try:
+                todos = self._mcp_call_sync("get_todos", {})
+                sys_msg = UserMessage(
+                    content=f"<system_reminder> GREEDY TRAVERSAL, ALWAYS call goto_node() with valid_next_node for maximum context.\n Update todos if required: {todos} </system_reminder>",
+                    requestor="assistant",
+                    role="user",
+                )
+                state.messages.append(sys_msg)
+                messages = state.system_messages + state.messages
+            except Exception:
+                pass
+
+        while True:
+            assistant_message = generate(
+                model=self.llm,
+                tools=self.tools,
+                messages=messages,
+                caller="agent",
+                **self.llm_args,
+            )
+            state.messages.append(assistant_message)
+
+            if not assistant_message.is_tool_call():
+                return assistant_message, state
+            mcp_only = all(
+                t.name in self._mcp_tool_names for t in assistant_message.tool_calls
+            )
+            if not mcp_only:
+                return assistant_message, state
+
+            if trajectory_sink is not None:
+                trajectory_sink(assistant_message)
+            for tc in assistant_message.tool_calls:
+                result = self._call_mcp_sync(tc.name, tc.arguments)
+                tool_msg = ToolMessage(
+                    id=tc.id,
+                    content="{}",
+                    requestor="assistant",
+                    role="tool",
+                )
+                state.messages.append(tool_msg)
+                if trajectory_sink is not None:
+                    trajectory_sink(tool_msg)
+                sys_msg = UserMessage(
+                    content=f"<system_message> \n{result} \n</system_message>",
+                    requestor="assistant",
+                    role="user",
+                )
+                state.messages.append(sys_msg)
+            messages = state.system_messages + state.messages
