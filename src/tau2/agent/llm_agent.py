@@ -724,8 +724,7 @@ class LLMMermaidAgent(LLMAgent):
 
         # Unconditional print so we see something even when log_level=ERROR filters everything else
         print(f"[LLMMermaidAgent] init mcp_server_url={mcp_server_url!r} will_init_mcp={bool(self._mcp_server_url)}", file=sys.stderr, flush=True)
-        # Use error level so logs appear when default log_level is ERROR (WARNING is filtered out)
-        logger.error(
+        logger.info(
             "LLMMermaidAgent: mcp_server_url={!r} (will init MCP: {})",
             mcp_server_url,
             bool(self._mcp_server_url),
@@ -750,32 +749,32 @@ class LLMMermaidAgent(LLMAgent):
         would make a subsequent list_tools() raise ClosedResourceError.
         """
         url = self._mcp_server_url.rstrip("/") + "/mcp" if "/mcp" not in self._mcp_server_url else self._mcp_server_url
-        logger.error("LLMMermaidAgent: _init_mcp_and_tools started sop_file={!r} url={!r}", self._sop_file, url)
+        logger.info("LLMMermaidAgent: _init_mcp_and_tools started sop_file={!r} url={!r}", self._sop_file, url)
         init_queue: queue.Queue = queue.Queue()
         request_queue: queue.Queue = queue.Queue()
         result_queue: queue.Queue = queue.Queue()
 
         async def _mcp_worker_async() -> None:
             try:
-                logger.error("LLMMermaidAgent: connecting to MCP url={!r}", url)
+                logger.info("LLMMermaidAgent: connecting to MCP url={!r}", url)
                 async with streamable_http_client(url) as (read_stream, write_stream, _):
-                    logger.error("LLMMermaidAgent: streamable_http_client connected")
+                    logger.info("LLMMermaidAgent: streamable_http_client connected")
                     async with ClientSession(read_stream, write_stream) as session:
                         await session.initialize()
-                        logger.error("LLMMermaidAgent: session.initialize() done")
+                        logger.info("LLMMermaidAgent: session.initialize() done")
                         # Call list_tools before load_graph so we get the tool list over normal
                         # request/response. load_graph often returns 202 and the response is delivered
                         # via the GET stream; when that stream ends the transport can close and
                         # list_tools would then raise ClosedResourceError.
                         tools_response = await session.list_tools()
                         num_tools = len(getattr(tools_response, "tools", []) or [])
-                        logger.error(
+                        logger.info(
                             "LLMMermaidAgent: list_tools() returned {} tools",
                             num_tools,
                         )
                         mcp_schemas = _mcp_tools_to_openai_format(tools_response)
                         mcp_names = [s.get("function", {}).get("name") for s in mcp_schemas]
-                        logger.error(
+                        logger.info(
                             "LLMMermaidAgent: converted to {} OpenAI schemas names={}",
                             len(mcp_schemas),
                             mcp_names,
@@ -784,7 +783,7 @@ class LLMMermaidAgent(LLMAgent):
                             "load_graph",
                             arguments={"sop_file": self._sop_file},
                         )
-                        logger.error(
+                        logger.info(
                             "LLMMermaidAgent: load_graph(sop_file={!r}) done isError={}",
                             self._sop_file,
                             getattr(load_result, "isError", False),
@@ -807,7 +806,7 @@ class LLMMermaidAgent(LLMAgent):
                             if (s.get("function") or {}).get("name") not in ["load_graph", "get_todos"]
                         ]
                         mcp_tool_names = {s["function"]["name"] for s in mcp_schemas}
-                        logger.error(
+                        logger.info(
                             "LLMMermaidAgent: after filter load_graph {} tools names={}",
                             len(mcp_schemas),
                             sorted(mcp_tool_names),
@@ -817,7 +816,7 @@ class LLMMermaidAgent(LLMAgent):
                                 "LLMMermaidAgent: no MCP tools after filtering load_graph; server may only expose load_graph"
                             )
                         init_queue.put(("ok", (mcp_schemas, mcp_tool_names, mermaid_system_prompt)))
-                        logger.error("LLMMermaidAgent: put (ok) on init_queue; entering tool-call loop")
+                        logger.info("LLMMermaidAgent: put (ok) on init_queue; entering tool-call loop")
                         while True:
                             item = request_queue.get()
                             if item is None:
@@ -838,7 +837,7 @@ class LLMMermaidAgent(LLMAgent):
         thread = threading.Thread(target=run_worker, daemon=True)
         thread.start()
         kind, payload = init_queue.get()
-        logger.error("LLMMermaidAgent: init_queue.get() -> kind={!r}", kind)
+        logger.info("LLMMermaidAgent: init_queue.get() -> kind={!r}", kind)
         if kind == "error":
             raise payload
         mcp_schemas, mcp_tool_names, mermaid_system_prompt = payload[0], payload[1], (payload[2] if len(payload) > 2 else None)
@@ -846,7 +845,7 @@ class LLMMermaidAgent(LLMAgent):
         domain_tool_count = len(self.tools)
         self.tools = list(self.tools) + [_MCPToolSchema(s) for s in mcp_schemas]
         self._mcp_tool_names = mcp_tool_names
-        logger.error(
+        logger.info(
             "LLMMermaidAgent: added {} MCP tools (domain={} total={}) MCP_names={}",
             len(mcp_schemas),
             domain_tool_count,

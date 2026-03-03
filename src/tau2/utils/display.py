@@ -1,9 +1,11 @@
 import json
 from typing import List, Optional
 
-from rich.console import Console
+from rich.console import Console, Group
 from rich.layout import Layout
 from rich.panel import Panel
+from rich.rule import Rule
+from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
@@ -359,6 +361,106 @@ class ConsoleDisplay:
         )
 
         cls.console.print(metrics_panel)
+
+    @classmethod
+    def display_conversation_step(cls, console: Console, payload: str) -> None:
+        """
+        Render a single orchestrator step (from role → to role, message body) as a Rich panel.
+        Payload is the log message after " - ", e.g. "Step N.\\nFrom role: ...\\nTo role: ...\\nMessage: ...".
+        """
+        lines = payload.strip().split("\n")
+        if not lines:
+            return
+        step_num = ""
+        from_role = ""
+        to_role = ""
+        message_start = 0
+        for i, line in enumerate(lines):
+            if line.startswith("Step ") and "." in line:
+                step_num = line.strip()
+            elif line.startswith("From role:"):
+                from_role = line.split(":", 1)[1].strip()
+            elif line.startswith("To role:"):
+                to_role = line.split(":", 1)[1].strip()
+            elif line.startswith("Message:"):
+                message_start = i
+                break
+        message_body = "\n".join(lines[message_start:]).strip() if message_start < len(lines) else ""
+
+        # Build content: header line then rule then message body with muted/secondary styling
+        header = Text()
+        header.append(step_num, style="bold cyan")
+        header.append("  ")
+        header.append(from_role, style="bold blue")
+        header.append(" → ", style="dim")
+        header.append(to_role, style="bold green")
+
+        # Format message body: dim timestamps/cost, highlight ToolCall name and arguments
+        body_lines = message_body.split("\n")
+        out = Text()
+        in_arguments = False
+        for i, ln in enumerate(body_lines):
+            if ln.startswith("Message:"):
+                out.append(ln + "\n", style="dim")
+            elif ln.strip().startswith("timestamp:"):
+                out.append(ln + "\n", style="dim")
+            elif ln.strip() == "ToolCalls":
+                out.append(ln + "\n", style="bold yellow")
+            elif ln.strip().startswith("ToolCall ("):
+                out.append(ln + "\n", style="bold yellow")
+            elif ln.strip().startswith("id:"):
+                out.append(ln + "\n", style="dim")
+            elif ln.strip().startswith("name:"):
+                out.append(ln + "\n", style="cyan")
+            elif ln.strip().startswith("arguments:"):
+                out.append(ln + "\n", style="dim")
+                in_arguments = True
+            elif in_arguments and ln.strip() and not ln.strip().startswith("}"):
+                out.append(ln + "\n", style="dim")
+            elif ln.strip() == "}":
+                out.append(ln + "\n", style="dim")
+                in_arguments = False
+            elif ln.strip().startswith("cost:"):
+                out.append(ln + "\n", style="dim")
+            elif ln.strip().startswith("content:"):
+                out.append(ln + "\n", style="dim")
+            else:
+                out.append(ln + "\n", style="white")
+        content = Group(header, Rule(style="dim"), out)
+
+        title = f"Step {step_num.replace('Step ', '').replace('.', '')}  {from_role} → {to_role}"
+        panel = Panel(
+            content,
+            title=f"[bold]{title}[/]",
+            border_style="blue",
+            padding=(0, 1),
+        )
+        console.print(panel)
+
+    @classmethod
+    def display_conversation_response(cls, console: Console, payload: str) -> None:
+        """
+        Render an environment tool response as a muted Rich panel.
+        Payload is the log message after " - ", e.g. "Response: {...}".
+        """
+        if "Response:" not in payload:
+            return
+        response_text = payload.split("Response:", 1)[1].strip()
+        # If it looks like JSON, show with syntax highlighting; otherwise plain
+        try:
+            json.loads(response_text)
+            syntax = Syntax(response_text, "json", theme="monokai", line_numbers=False)
+            content = syntax
+        except (ValueError, json.JSONDecodeError):
+            content = Text(response_text, style="dim")
+
+        panel = Panel(
+            content,
+            title="[dim]Response[/]",
+            border_style="dim",
+            padding=(0, 1),
+        )
+        console.print(panel)
 
 
 class MarkdownDisplay:

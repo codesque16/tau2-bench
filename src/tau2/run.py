@@ -8,6 +8,7 @@ from typing import Optional
 
 import logfire
 from loguru import logger
+from rich.console import Console
 
 from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMMermaidAgent, LLMMermaidSoloAgent2, LLMSoloAgent, LLMSoloAgent2
 from tau2.data_model.simulation import (
@@ -314,9 +315,42 @@ def run_tasks(
     """
     if isinstance(save_to, str):
         save_to = Path(save_to)
-    # Set log level from config
+    # Set log level from config, using Rich console for conversation panels + level colors
+    console = Console()
+
+    def _rich_log_sink(message):
+        msg = str(message)
+        # Orchestrator step (detailed): show as a single panel (from role → to role, message body)
+        if "orchestrator.orchestrator:step" in msg and "From role:" in msg and " - " in msg:
+            payload = msg.split(" - ", 1)[1]
+            ConsoleDisplay.display_conversation_step(console, payload)
+            return
+        # Skip the short orchestrator line "Step N. Sending message from X to Y" (we show the detailed one)
+        if "orchestrator.orchestrator:step" in msg and "From role:" not in msg:
+            return
+        # Environment tool response: show in a muted panel
+        if "environment.environment:get_response" in msg and "Response:" in msg and " - " in msg:
+            payload = msg.split(" - ", 1)[1]
+            ConsoleDisplay.display_conversation_response(console, payload)
+            return
+        # All other logs: print with level-based color (no markup to avoid escape-code leakage)
+        if "| ERROR   " in msg:
+            console.print(msg, style="bold red", highlight=False, markup=False)
+        elif "| WARNING " in msg:
+            console.print(msg, style="yellow", highlight=False, markup=False)
+        elif "| DEBUG   " in msg:
+            console.print(msg, style="dim blue", highlight=False, markup=False)
+        elif "| INFO    " in msg:
+            console.print(msg, style="green", highlight=False, markup=False)
+        else:
+            console.print(msg, highlight=False, markup=False)
+
     logger.remove()
-    logger.add(lambda msg: print(msg), level=log_level)
+    logger.add(
+        _rich_log_sink,
+        level=log_level,
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
+    )
     if len(tasks) == 0:
         raise ValueError("No tasks to run")
     if num_trials <= 0:
