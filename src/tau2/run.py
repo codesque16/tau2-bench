@@ -186,6 +186,20 @@ def run_domain(config: RunConfig) -> Results:
             style="bold green",
         )
         ConsoleDisplay.console.print(console_text)
+    if getattr(config, "solo_comms_only", False) and task_set_name == "retail_solo_comms":
+        total_num_tasks = len(tasks)
+        tasks = [
+            task
+            for task in tasks
+            if task.evaluation_criteria
+            and len(task.evaluation_criteria.communicate_info or []) > 0
+        ]
+        num_tasks = len(tasks)
+        console_text = Text(
+            text=f"Running {num_tasks} out of {total_num_tasks} tasks (solo_comms_only: only tasks with communicate_info).",
+            style="bold green",
+        )
+        ConsoleDisplay.console.print(console_text)
 
     num_trials = config.num_trials
     save_to = config.save_to

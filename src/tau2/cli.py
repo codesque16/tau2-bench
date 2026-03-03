@@ -184,6 +184,13 @@ def add_run_args(parser):
         default=False,
         help="For solo agent: include all tasks (including solo_convertible=false) and evaluate using only DB/env state, omitting the communicate_info check. Set automatically when --task-set-name is retail_solo_all.",
     )
+    parser.add_argument(
+        "--solo-comms-only",
+        dest="solo_comms_only",
+        action="store_true",
+        default=False,
+        help="When using task set retail_solo_comms: run only tasks that have communicate_info (comms check). Default: run all tasks in the set.",
+    )
 
 
 def main():
@@ -229,6 +236,7 @@ def main():
                 mcp_server_url=mcp_server_url,
                 mcp_sop_file=mcp_sop_file,
                 solo_eval_db_only=solo_eval_db_only,
+                solo_comms_only=getattr(args, "solo_comms_only", False),
             )
         )
 

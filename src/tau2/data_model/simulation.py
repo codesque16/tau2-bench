@@ -203,6 +203,13 @@ class RunConfig(BaseModel):
             default=False,
         ),
     ]
+    solo_comms_only: Annotated[
+        bool,
+        Field(
+            description="When True and task set is retail_solo_comms, run only tasks that have non-empty communicate_info (comms check). When False, run all tasks in the set.",
+            default=False,
+        ),
+    ]
 
     def validate(self) -> None:
         """
