@@ -1,3 +1,4 @@
+import json
 import time
 import uuid
 from copy import deepcopy
@@ -8,7 +9,13 @@ from typing import Any, List, Optional
 from loguru import logger
 
 from tau2.agent.base import AgentError, BaseAgent, is_valid_agent_history_message
-from tau2.agent.llm_agent import LLMMermaidSoloAgent2, LLMSoloAgent, LLMSoloAgent2
+from tau2.agent.llm_agent import (
+    LLMMermaidSoloAgent2,
+    LLMReActSoloAgent2,
+    LLMSoloAgent,
+    LLMSoloAgent2,
+    _react_has_thought_before_action,
+)
 from tau2.data_model.message import (
     AssistantMessage,
     Message,
@@ -420,7 +427,7 @@ class Orchestrator:
                     role="tool",
                     error=error,
                 )
-        # Solo agent tools (verify_completion, request_done) are not in the environment;
+        # Solo agent tools (verify_completion, request_done, all_todo_done) are not in the environment;
         # execute them here like check_for_stop for the user.
         if (
             self.solo_mode
@@ -429,12 +436,16 @@ class Orchestrator:
             in (
                 LLMSoloAgent.VERIFY_COMPLETION_FUNCTION_NAME,
                 LLMSoloAgent.REQUEST_DONE_FUNCTION_NAME,
+                LLMSoloAgent.ALL_TODO_DONE_FUNCTION_NAME,
             )
         ):
             if tool_call.name == LLMSoloAgent.VERIFY_COMPLETION_FUNCTION_NAME:
                 content = LLMSoloAgent.VERIFY_COMPLETION_MESSAGE
-            else:
+            elif tool_call.name == LLMSoloAgent.REQUEST_DONE_FUNCTION_NAME:
                 content = LLMSoloAgent.STOP_TOKEN
+            else:
+                # all_todo_done: simulation stops after this step; message_to_user is recorded in trajectory
+                content = "Simulation complete. Final message delivered to user."
             return ToolMessage(
                 id=tool_call.id,
                 content=content,
@@ -477,10 +488,34 @@ class Orchestrator:
         elif self.to_role == Role.USER:
             last_msg_to_user = self.message
         elif self.to_role == Role.ENV and not has_error:
-            raise ValueError(
-                "Environment should not receive the last message. Last message: "
-                + str(self.message)
-            )
+            # Defensive: if the only pending message is all_todo_done or transfer_to_human_agents, treat as AGENT_STOP
+            if isinstance(self.message, AssistantMessage) and self.message.tool_calls and all(
+                tc.name
+                in (
+                    LLMSoloAgent.ALL_TODO_DONE_FUNCTION_NAME,
+                    LLMSoloAgent.TRANSFER_TOOL_NAME,
+                )
+                for tc in self.message.tool_calls
+            ):
+                self.termination_reason = TerminationReason.AGENT_STOP
+                content = (
+                    "Simulation complete. Final message delivered to user."
+                    if self.message.tool_calls[0].name
+                    == LLMSoloAgent.ALL_TODO_DONE_FUNCTION_NAME
+                    else "Transfer successful"
+                )
+                last_msg_to_agent = ToolMessage(
+                    id=self.message.tool_calls[0].id,
+                    content=content,
+                    requestor="assistant",
+                    role="tool",
+                    error=False,
+                )
+            else:
+                raise ValueError(
+                    "Environment should not receive the last message. Last message: "
+                    + str(self.message)
+                )
         self.agent.stop(last_msg_to_agent, self.agent_state)
         self.user.stop(last_msg_to_user, self.user_state)
 
@@ -587,35 +622,111 @@ class Orchestrator:
                 self.to_role = Role.ENV
             else:
                 self.to_role = Role.USER
-                # In solo mode, there is no user, so if the message is not a tool call and not a stop, then we end and report an agent error
+                # In solo mode, no real user: text-only from agent is either error or (ReAct) continue
                 if self.solo_mode and not self.agent.is_stop(agent_msg):
-                    self.done = True
-                    self.termination_reason = TerminationReason.AGENT_ERROR
+                    # ReAct solo: treat text-only as assistant message only; continue by prompting agent to call all_todo_done when done
+                    if isinstance(self.agent, LLMReActSoloAgent2):
+                        continue_msg = UserMessage(
+                            role="user",
+                            content=(
+                                "Continue. Use tool calls for any further actions. "
+                                "When all tasks are complete, call all_todo_done(message_to_user='<your final reply>') to end the conversation."
+                            ),
+                        )
+                        self.trajectory.append(continue_msg)
+                        self.message = continue_msg
+                        self.from_role = Role.USER
+                        self.to_role = Role.AGENT
+                    else:
+                        self.done = True
+                        self.termination_reason = TerminationReason.AGENT_ERROR
         # AGENT/USER -> ENV
         elif self.from_role in [Role.AGENT, Role.USER] and self.to_role == Role.ENV:
             if not self.message.is_tool_call():
                 raise ValueError("Agent or User should send tool call to environment")
-            tool_msgs = []
-            for tool_call in self.message.tool_calls:
-                tool_msg = self._get_tool_response(tool_call)
-                if tool_msg.error:
-                    self.num_errors += 1
-                tool_msgs.append(tool_msg)
-            assert len(self.message.tool_calls) == len(
-                tool_msgs
-            ), "Number of tool calls and tool messages should be the same"
-            self.trajectory.extend(tool_msgs)
+            # ReAct enforcement: if agent is ReAct and sent tool calls without Thought, do not execute; return instruction + tool params
             if (
-                len(tool_msgs) > 1
-            ):  # Packaging multiple tool messages into a MultiToolMessage
-                self.message = MultiToolMessage(
-                    role="tool",
-                    tool_messages=tool_msgs,
+                self.from_role == Role.AGENT
+                and isinstance(self.agent, LLMReActSoloAgent2)
+                and not _react_has_thought_before_action(self.message)
+            ):
+                logger.warning(
+                    "ReAct agent sent tool calls without Thought; returning enforcement message instead of executing"
                 )
+                tool_msgs = []
+                for tool_call in self.message.tool_calls:
+                    instruction = (
+                        "ReAct enforcement: You MUST output a Thought block as markdown frontmatter (between ---) with 'references:' (policy/conversation snippets), 'thought:' (your reasoning), and 'todos:' (list with [ ] not started, [~] in progress, [x] done). "
+                        "You attempted the following without a valid Thought block. Please retry with Thought then Action."
+                    )
+                    params_str = json.dumps(tool_call.arguments, indent=2)
+                    content = f"{instruction}\n\nTool that was not executed: {tool_call.name}\nArguments:\n{params_str}"
+                    tool_msgs.append(
+                        ToolMessage(
+                            id=tool_call.id,
+                            content=content,
+                            requestor="assistant",
+                            role="tool",
+                            error=True,
+                        )
+                    )
+                self.trajectory.extend(tool_msgs)
+                if len(tool_msgs) > 1:
+                    self.message = MultiToolMessage(
+                        role="tool",
+                        tool_messages=tool_msgs,
+                    )
+                else:
+                    self.message = tool_msgs[0]
+                self.to_role = self.from_role
+                self.from_role = Role.ENV
             else:
-                self.message = tool_msgs[0]
-            self.to_role = self.from_role
-            self.from_role = Role.ENV
+                tool_msgs = []
+                for tool_call in self.message.tool_calls:
+                    tool_msg = self._get_tool_response(tool_call)
+                    if tool_msg.error:
+                        self.num_errors += 1
+                    tool_msgs.append(tool_msg)
+                assert len(self.message.tool_calls) == len(
+                    tool_msgs
+                ), "Number of tool calls and tool messages should be the same"
+                self.trajectory.extend(tool_msgs)
+                # If agent called all_todo_done or transfer_to_human_agents, stop simulation
+                for tool_call in self.message.tool_calls:
+                    if tool_call.name == LLMSoloAgent.ALL_TODO_DONE_FUNCTION_NAME:
+                        message_to_user = (tool_call.arguments or {}).get(
+                            "message_to_user", ""
+                        )
+                        self.trajectory.append(
+                            UserMessage(
+                                role="user",
+                                content=message_to_user or "(No message)",
+                            )
+                        )
+                        self.done = True
+                        self.termination_reason = TerminationReason.AGENT_STOP
+                        break
+                    if tool_call.name == LLMSoloAgent.TRANSFER_TOOL_NAME:
+                        self.trajectory.append(
+                            UserMessage(
+                                role="user",
+                                content="YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.",
+                            )
+                        )
+                        self.done = True
+                        self.termination_reason = TerminationReason.AGENT_STOP
+                        break
+                if (
+                    len(tool_msgs) > 1
+                ):  # Packaging multiple tool messages into a MultiToolMessage
+                    self.message = MultiToolMessage(
+                        role="tool",
+                        tool_messages=tool_msgs,
+                    )
+                else:
+                    self.message = tool_msgs[0]
+                self.to_role = self.from_role
+                self.from_role = Role.ENV
         else:
             raise ValueError(
                 f"Invalid role combination. From role: {self.from_role}, To role: {self.to_role}"

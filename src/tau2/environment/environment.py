@@ -26,9 +26,19 @@ from tau2.user.tools import (
 # When replaying message_history in set_state, skip these so we don't call get_response on them.
 MCP_TOOL_NAMES = frozenset({"goto_node", "todo_tasks", "load_graph", "get_todos"})
 
-# Solo agent tools (verify_completion, request_done) are on the agent only, not the domain env.
+# Solo agent tools (verify_completion, request_done, all_todo_done) are on the agent only, not the domain env.
 # When replaying in solo_mode, skip these so we don't call get_response on them.
-SOLO_AGENT_ONLY_TOOL_NAMES = frozenset({"verify_completion", "request_done"})
+SOLO_AGENT_ONLY_TOOL_NAMES = frozenset({"verify_completion", "request_done", "all_todo_done"})
+
+# ReAct enforcement: orchestrator returns this synthetic ToolMessage when the agent sent tool
+# calls without a Thought. The tool was not executed. When replaying in set_state, skip so we
+# don't execute the tool and don't compare response (there was no real execution).
+REACT_ENFORCEMENT_CONTENT_PREFIX = "ReAct enforcement:"
+
+# ReAct solo: orchestrator injects this UserMessage when the agent sends text-only; it is not
+# a real user turn. When replaying in set_state, strip these so get_actions_from_messages
+# sees correct AssistantMessage -> ToolMessage pairing.
+REACT_CONTINUE_CONTENT_PREFIX = "Continue. Use tool calls"
 
 
 class EnvironmentInfo(BaseModel):
@@ -282,9 +292,12 @@ class Environment:
         Set the state of the environment given initialization data and a list of messages.
         """
         if self.solo_mode:
-            assert all(
-                [not isinstance(message, UserMessage) for message in message_history]
-            ), "User messages are not allowed in solo mode"
+            # In solo mode the trajectory can contain UserMessages (initial prompt, "Continue...",
+            # all_todo_done/transfer final message). Strip all so set_state and get_actions_from_messages
+            # only see AssistantMessage and ToolMessage.
+            message_history = [
+                m for m in message_history if not isinstance(m, UserMessage)
+            ]
 
         def get_actions_from_messages(
             messages: list[Message],
@@ -334,6 +347,14 @@ class Environment:
             if tool_call.name in MCP_TOOL_NAMES:
                 continue
             if self.solo_mode and tool_call.name in SOLO_AGENT_ONLY_TOOL_NAMES:
+                continue
+            # ReAct enforcement: this tool was not executed; synthetic response was returned.
+            if (
+                expected_response.error
+                and (expected_response.content or "").strip().startswith(
+                    REACT_ENFORCEMENT_CONTENT_PREFIX
+                )
+            ):
                 continue
             response = self.get_response(tool_call)
             try:

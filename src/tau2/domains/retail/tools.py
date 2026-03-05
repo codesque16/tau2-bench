@@ -22,6 +22,8 @@ from tau2.domains.retail.utils import (
     RETAIL_POLICY_RETURN_PATH,
 )
 from tau2.environment.toolkit import ToolKitBase, ToolType, is_tool
+from tau2.sandbox import DEFAULT_SANDBOX_CONFIG, Sandbox
+
 
 class RetailTools(ToolKitBase):  # Tools
     """All the tools for the retail domain."""
@@ -35,6 +37,8 @@ class RetailTools(ToolKitBase):  # Tools
     ) -> None:
         super().__init__(db)
         self._excluded_tool_names = frozenset(excluded_tool_names or ())
+        # Lazy-initialized Docker sandbox for the optional `bash` tool.
+        self._sandbox: Optional[Sandbox] = None
 
     @property
     def tools(self):
@@ -50,6 +54,42 @@ class RetailTools(ToolKitBase):  # Tools
         if tool_name in self._excluded_tool_names:
             return False
         return super().has_tool(tool_name)
+
+    # ── Optional Docker-backed bash sandbox ────────────────────────
+
+    def _get_sandbox(self) -> Sandbox:
+        """Get or create the Docker sandbox for this toolkit instance."""
+        if self._sandbox is None:
+            self._sandbox = Sandbox(DEFAULT_SANDBOX_CONFIG)
+        return self._sandbox
+
+    @is_tool(ToolType.GENERIC)
+    def bash(self, command: str) -> str:
+        """
+        Run a bash command in a sandboxed Docker container.
+
+        This tool is intended for experimental agents that treat the filesystem
+        as external working memory (e.g. writing /agent/state.md,
+        /agent/reasoning.md). It executes the command inside a resource-limited
+        container, returning combined stdout, stderr and exit code as a single
+        string for the agent to read.
+
+        Args:
+            command: The bash command to execute.
+
+        Returns:
+            A human-readable string containing stdout (if any), stderr (if any),
+            and the numeric exit code, truncated to a safe length.
+        """
+        sandbox = self._get_sandbox()
+        result = sandbox.run(command)
+        parts: list[str] = []
+        if result.get("stdout"):
+            parts.append(str(result["stdout"]))
+        if result.get("stderr"):
+            parts.append(f"STDERR:\n{result['stderr']}")
+        parts.append(f"[exit code: {result.get('exit_code')}]")
+        return "\n".join(parts)
 
     def _get_order(self, order_id: str) -> Order:
         """Get the order from the database.
@@ -718,6 +758,21 @@ class RetailTools(ToolKitBase):  # Tools
     #         Empty string
     #     """
     #     return ""
+
+    @is_tool(ToolType.GENERIC)
+    def all_todo_done(self, message_to_user: str) -> str:
+        """
+        Call this only after all todos in your Thought block are marked [x] (done).
+        A todo should be marked [x] only after the corresponding action has been carried out, not before.
+        Calling this tool ends the simulation. Use it to deliver your final reply to the user.
+
+        Args:
+            message_to_user: The text of your final reply to the user. This is the message the user will see when the simulation stops.
+
+        Returns:
+            Confirmation that the simulation has ended.
+        """
+        return "Simulation complete. Final message delivered to user."
 
     @is_tool(ToolType.GENERIC)
     def transfer_to_human_agents(self, summary: str) -> str:

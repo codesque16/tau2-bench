@@ -177,6 +177,8 @@ def run_domain(config: RunConfig) -> Results:
             check_solo = LLMSoloAgent2.check_valid_task
         elif config.agent == "llm_mermaid_solo_agent":
             check_solo = LLMMermaidSoloAgent2.check_valid_task
+        elif config.agent in ("llm_bash_solo_agent", "llm_react_solo_agent"):
+            check_solo = LLMSoloAgent2.check_valid_task
         else:
             check_solo = LLMSoloAgent.check_valid_task
         tasks = [task for task in tasks if check_solo(task)]

@@ -134,3 +134,5 @@ For a delivered order, each item can be exchanged to an available new item of th
 The user must provide a payment method to pay or receive refund of the price difference. If the user provides a gift card, it must have enough balance to cover the price difference.
 
 After user confirmation, the order status will be changed to 'exchange requested', and the user will receive an email regarding how to return items. There is no need to place a new order.
+
+To solve the problem always follow 

@@ -343,6 +343,7 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
 
     REQUEST_DONE_FUNCTION_NAME = "request_done"
     VERIFY_COMPLETION_FUNCTION_NAME = "verify_completion"
+    ALL_TODO_DONE_FUNCTION_NAME = "all_todo_done"
     TRANSFER_TOOL_NAME = "transfer_to_human_agents"
     STOP_TOKEN = "###STOP###"
 
@@ -562,6 +563,180 @@ SYSTEM_PROMPT_SOLO2 = """
 """.strip()
 
 
+AGENT_BASH_SOLO_INSTRUCTION = """
+You are a general-purpose solo agent with a single tool: bash.
+You use a bash shell and the filesystem as your working memory, reasoning space, and action log.
+You NEVER communicate with the end user directly; you only make tool calls. The simulator will present
+you with a ticket, and your job is to fully resolve it by following the protocol below and then sending
+one final reply (no tool calls) summarizing what you did.
+
+## MANDATORY FILE-BASED PROTOCOL — EVERY TURN
+
+Before you finish each tool-call turn, you MUST logically follow these phases in order, using bash
+commands to manipulate files inside the sandboxed filesystem:
+
+1. READ state
+   - Treat `/agent/state.md` as your source of truth for the current session.
+   - If it exists, run a command like: `cat /agent/state.md`
+   - If it does NOT exist, create it from a reasonable template that tracks:
+     - turn counter (single integer)
+     - current task description (1–2 short lines)
+     - key facts (bullet list; each bullet ≤ 1 short sentence)
+     - pending actions (short checklist; each item ≤ 1 short sentence)
+     - completed actions (short checklist; each item ≤ 1 short sentence)
+     - procedure tracking / checklists (very compact table or bullets)
+   - Never assume in-memory facts override what is written in `state.md`. If there is a conflict,
+     trust the file and update your beliefs.
+
+2. THINK (append-only reasoning log)
+   - Use `/agent/reasoning.md` as an append-only log of your internal thoughts and plans.
+   - DO NOT edit or delete previous content; only append.
+   - For each turn, append a structured block like:
+     - `## Turn N — <timestamp>`
+     - `**User said:** <brief summary of the latest ticket/context>`
+     - `**Current state:** <what you learned from state.md>`
+     - `**My analysis:** <what is needed, constraints, uncertainties>`
+     - `**Plan:** <concrete steps for this turn>`
+   - Keep each subsection extremely concise:
+     - Prefer 1–3 short bullet points instead of long paragraphs.
+     - Avoid repeating details that are already in `state.md`; reference them instead.
+   - Use a heredoc pattern such as:
+     - `cat >> /agent/reasoning.md << 'THINK'`
+       (reasoning content)
+       `THINK`
+
+3. ACT (tool use, computations, edits)
+   - Execute whatever bash commands are needed to advance the task:
+     - reading/writing other files under `/agent/` or the working directory
+     - running scripts or programs
+     - performing calculations
+     - calling domain-specific CLIs or HTTP clients if available
+   - Use the bash tool for ALL non-trivial computation or file I/O; do not pretend to have executed
+     commands you did not actually run.
+   - Keep commands reasonably small and composable; avoid huge monolithic commands that are hard
+     to debug or update.
+
+4. UPDATE state
+   - Rewrite `/agent/state.md` to reflect what happened this turn.
+   - At minimum, update (all in a compact, skimmable format):
+     - turn counter
+     - key facts you learned (each fact ≤ 1 line)
+     - pending actions (short checklist with [ ] / [x]; each item ≤ 1 line)
+     - completed actions (short checklist; each item ≤ 1 line)
+     - any multi-step procedure tracking table you are maintaining (short labels, no prose)
+   - Use redirection that overwrites the file (e.g. `cat > /agent/state.md << 'STATE' ... STATE`).
+   - Keep `state.md` **very concise**; it is the *current* snapshot, not a full history.
+
+5. RESPOND (to the simulator, not the user)
+   - After you have:
+     - read state
+     - appended to reasoning
+     - taken necessary bash actions
+     - updated state
+   - Then you may send a normal assistant turn back (either more tool calls, or — when the ticket
+     is fully resolved — a final natural-language summary with NO tool calls).
+   - Do NOT mention `/agent/state.md`, `/agent/reasoning.md`, or this protocol to the end user;
+     these are internal implementation details.
+
+## RULES AND SAFETY
+
+- NEVER skip phases 1–4 when you are still actively working on a ticket, even if the change seems small.
+- If you are uncertain, explicitly note the uncertainty in `/agent/reasoning.md` and in your plan.
+- If a multi-step procedure (e.g., a checklist or workflow) is in progress, track it explicitly in
+  `state.md` under “Procedure Tracking” or a similar section.
+- Always optimize for **short, information-dense notes**:
+  - Prefer bullets over prose, and single-line entries over multi-line blocks.
+  - Push any rare, long-form thinking into `/agent/reasoning.md`, never into `state.md`.
+- If `state.md` grows beyond ~60–80 lines, plan a “compaction” step where you summarize and rewrite it
+  cleanly based on your accumulated understanding, keeping only what is essential.
+
+You MUST obey the domain-specific policy and tools described in the <policy> section below, but you
+MUST also respect this bash/file-based protocol for how you think and act.
+""".strip()
+
+
+SYSTEM_PROMPT_BASH_SOLO = """
+<instructions>
+{agent_instruction}
+</instructions>
+<policy>
+{domain_policy}
+</policy>
+<ticket>
+{ticket}
+</ticket>
+""".strip()
+
+
+AGENT_REACT_SOLO_INSTRUCTION = """
+You are a customer service agent that helps the user according to the <policy> provided below.
+You will be provided with a ticket that contains the user's request.
+You MUST follow the ReAct pattern on every turn: **Thought** → **Action** → **Observation** (repeat until done).
+
+## Thought block format (mandatory)
+
+Before every **Action** (tool call), you MUST output a Thought block as **markdown frontmatter** (YAML between --- delimiters). The block has three keys in this order:
+
+1. **references** (FIRST): Quote or cite the specific policy phrase(s) and/or conversation snippet(s) (from the ticket or prior tool results) on which you are grounding your reasoning.
+
+2. **thought** (SECOND): Your reasoning in 1–3 sentences: what you know, what you conclude, and what you will do next.
+
+3. **todos** (THIRD): A list of task items with checkbox status. You can modify this list dynamically as the conversation progresses (add, remove, or update items). Use one of:
+   - `[ ]` = not started
+   - `[~]` = in progress (you are about to or currently doing this)
+   - `[x]` = done — mark a todo [x] **only after** the corresponding action has been carried out (e.g. after you received the tool result), not before.
+
+Example:
+
+Thought:
+---
+references: |
+  - Policy: "You can only help one user per ticket; deny requests for other users."
+  - Ticket: "Customer Emma Smith (zip 10192) wants to check order #W2417020."
+thought: |
+  The ticket identifies one user (Emma Smith, zip 10192) and one order. I will look up the order to verify status before any action.
+todos: |
+  - [ ] Authenticate user (name + zip)
+  - [~] Look up order #W2417020
+  - [ ] Confirm status to customer
+---
+
+Only after the Thought block may you make tool calls. Every turn that includes tool calls MUST have this frontmatter Thought block in the same message (above the tool calls). Update the todos list each turn to reflect progress.
+
+## Ending the simulation: all_todo_done
+
+When **all** todos are marked [x] (done), call the **all_todo_done** tool exactly once. This tool **stops the simulation**. It has one parameter:
+- **message_to_user** (required): The text of your final reply to the user. This is the message the user will see when the simulation ends.
+
+Rules:
+- Call all_todo_done **only after** every todo in your list is [x]. Do not call it while any todo is still [ ] or [~].
+- Mark a todo [x] only after the corresponding action has been carried out and you have received the tool result, not before.
+- The simulation **stops only when you call all_todo_done(message_to_user="...")**. If you send a text-only message, the conversation will continue and you will be prompted to use tools or call all_todo_done when done.
+
+## ReAct loop
+
+1. **Thought**: Output the markdown frontmatter block (references, thought, todos). Update todos: use [x] only after the action is done; use [~] for in progress.
+2. **Action**: Use the appropriate tool(s), or call all_todo_done(message_to_user="...") when all todos are [x].
+3. **Observation**: You will receive the tool result(s). Update todos (mark [x] for completed items), then output a new Thought block and either take more actions or call all_todo_done.
+4. When you call all_todo_done, the simulation stops and message_to_user is delivered to the user.
+
+You cannot communicate with the user until you have finished all tool calls (or called all_todo_done). Always follow the policy.
+""".strip()
+
+
+SYSTEM_PROMPT_REACT_SOLO = """
+<instructions>
+{agent_instruction}
+</instructions>
+<policy>
+{domain_policy}
+</policy>
+<ticket>
+{ticket}
+</ticket>
+""".strip()
+
+
 class LLMSoloAgent2(LocalAgent[LLMAgentState]):
     """
     Solo LLM agent that completes all tasks then sends one final reply.
@@ -691,6 +866,126 @@ class LLMSoloAgent2(LocalAgent[LLMAgentState]):
         if cur_seed is not None:
             logger.warning(f"Seed is already set to {cur_seed}, resetting it to {seed}")
         self.llm_args["seed"] = seed
+
+
+class LLMBashSoloAgent2(LLMSoloAgent2):
+    """
+    Solo LLM agent that follows a bash + filesystem-based protocol for externalized memory.
+
+    Behavior:
+      - Same solo interaction pattern as LLMSoloAgent2:
+          * simulator provides a ticket
+          * agent may make multiple tool calls (including a bash tool) to complete all work
+          * simulation stops when the agent sends a final reply with NO tool calls
+      - System prompt is specialized to instruct the model to:
+          * use a bash tool as its primary execution mechanism
+          * manage `/agent/state.md` as living state
+          * append internal thoughts to `/agent/reasoning.md`
+          * treat the filesystem as working memory and an audit trail.
+
+    This agent assumes that the environment exposes a `bash` tool (or equivalent) in its tool list;
+    the benchmark harness simply passes through whatever tools the environment provides.
+    """
+
+    @property
+    def system_prompt(self) -> str:
+        ticket = (self.task.ticket or "").strip()
+        return SYSTEM_PROMPT_BASH_SOLO.format(
+            agent_instruction=AGENT_BASH_SOLO_INSTRUCTION,
+            domain_policy=self.domain_policy,
+            ticket=ticket,
+        )
+
+
+def _react_has_thought_before_action(msg: AssistantMessage) -> bool:
+    """True if message has no tool calls, or has tool calls with explicit Thought in content (plain or frontmatter)."""
+    if not msg.tool_calls:
+        return True
+    content = (msg.content or "").strip()
+    if not content:
+        return False
+    content_lower = content.lower()
+    # Frontmatter format: --- with references:, thought:, and todos: keys
+    if (
+        "---" in content
+        and "references:" in content_lower
+        and "thought:" in content_lower
+        and "todos:" in content_lower
+    ):
+        return True
+    # Legacy / plain format
+    return (
+        "**thought**" in content_lower
+        or "thought:" in content_lower
+        or "thought " in content_lower
+        or "reasoning:" in content_lower
+        or "reasoning " in content_lower
+    )
+
+
+class LLMReActSoloAgent2(LLMSoloAgent2):
+    """
+    Solo LLM agent that follows the ReAct pattern (Thought → Action → Observation).
+
+    Same solo interaction as LLMSoloAgent2: ticket in, complete via tool calls,
+    then end by calling all_todo_done(message_to_user="..."). The simulation
+    stops only when all_todo_done is called, not when the agent sends a text-only message.
+
+    Enforcement is done in the orchestrator: when this agent sends tool calls
+    without a Thought in the same message, the tools are not executed; the
+    agent receives a synthetic observation with the instruction and the
+    tool call parameters that were attempted, so it can retry with Thought then Action.
+    """
+
+    @property
+    def system_prompt(self) -> str:
+        ticket = (self.task.ticket or "").strip()
+        return SYSTEM_PROMPT_REACT_SOLO.format(
+            agent_instruction=AGENT_REACT_SOLO_INSTRUCTION,
+            domain_policy=self.domain_policy,
+            ticket=ticket,
+        )
+
+    def generate_next_message(
+        self,
+        message: Optional[ValidAgentInputMessage],
+        state: LLMAgentState,
+        trajectory_sink: Optional[Callable[[Message], None]] = None,
+    ) -> tuple[AssistantMessage, LLMAgentState]:
+        """Same as LLMSoloAgent2 but allow UserMessage (orchestrator-injected 'Continue...' prompt)."""
+        if isinstance(message, UserMessage):
+            state.messages.append(message)
+        elif isinstance(message, MultiToolMessage):
+            state.messages.extend(message.tool_messages)
+        elif message is None:
+            assert len(state.messages) == 0, "Message history should be empty"
+            state.messages.append(
+                UserMessage(role="user", content=self._SOLO2_FIRST_TURN_USER_MESSAGE)
+            )
+        else:
+            state.messages.append(message)
+        messages = state.system_messages + state.messages
+        assistant_message = generate(
+            model=self.llm,
+            tools=self.tools,
+            messages=messages,
+            caller="agent",
+            **self.llm_args,
+        )
+        state.messages.append(assistant_message)
+        return assistant_message, state
+
+    @classmethod
+    def is_stop(cls, message: AssistantMessage) -> bool:
+        """Stop only when all_todo_done has been processed (orchestrator sets done in AGENT->ENV).
+        Return False whenever there are tool_calls so we never stop before processing them;
+        otherwise we would exit before appending ToolMessages and break evaluation replay.
+        """
+        if not message.tool_calls:
+            return False  # Text-only: continue conversation, do not stop
+        # Do not stop here: route to AGENT->ENV to process tools, then orchestrator sets done
+        # when all_todo_done is handled (so trajectory gets ToolMessage + final AssistantMessage).
+        return False
 
 
 class LLMMermaidAgent(LLMAgent):
