@@ -1,0 +1,1093 @@
+[
+  {
+    "id": "0",
+    "description": {
+      "purpose": "User-initiated free cancellation while order is still pending acceptance.",
+      "relevant_policies": "Cancel order \u2192 User-initiated cancellation while status is pending_acceptance.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You are careful about charges and do not want to pay a cancellation fee.\nIf the agent clearly explains that cancellation is free because the restaurant has not accepted the order yet, you are happy to cancel.\nIf the agent says there could be a fee, ask them to double-check before agreeing.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You placed a biryani order (#FD1004) to your home in Gachibowli a few minutes ago, but your friends have suddenly cancelled the plan and you no longer want the food.",
+        "known_info": "You are Farhan Khan from Hyderabad.\nYour registered mobile number is +91-90000-70003.",
+        "unknown_info": "You do not remember the exact restaurant name, only that it was a Hyderabadi biryani place in Gachibowli."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "0_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "0_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1004"
+          },
+          "info": null
+        },
+        {
+          "action_id": "0_2",
+          "name": "cancel_order",
+          "arguments": {
+            "order_id": "#FD1004",
+            "reason": "changed mind"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "The order #FD1004 is still pending acceptance, so cancellation is free.",
+        "No payment has been captured yet; Farhan will not be charged."
+      ],
+      "nl_assertions": [
+        "Agent must authenticate the user using phone number before accessing order details.",
+        "Agent should confirm that the order is in pending_acceptance status before cancelling.",
+        "Agent should clearly state that cancellation is free and that no payment will be taken."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Farhan Khan from Hyderabad.\nYour registered mobile number is +91-90000-70003.\n\nCustomer request:\nYou placed a biryani order (#FD1004) to your home in Gachibowli a few minutes ago, but your friends have suddenly cancelled the plan and you no longer want the food.\n\nNote: You do not remember the exact restaurant name, only that it was a Hyderabadi biryani place in Gachibowli.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "1",
+    "description": {
+      "purpose": "Modify items in a preparing order by handling an unavailable dish and price difference correctly.",
+      "relevant_policies": "Modify order \u2192 Modifications allowed before or early during preparation, with clear price difference explanation.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are a vegetarian software engineer in Bengaluru, very particular about onions and Jain options when ordering South Indian food during office hours.",
+      "instructions": {
+        "task_instructions": "You ordered breakfast to your office and notice that one of the items includes onion, which your teammate who will share the food cannot eat.\nAsk the agent if they can change that item to another dosa from the same restaurant.\nIf the agent proposes a reasonable replacement and explains the final amount including any wallet adjustments, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You recently placed order #FD1002 from Madras Idli Corner to your office address.\nThe order includes an Onion Uttapam, but your teammate cannot eat onion today.",
+        "known_info": "You are Ananya Singh in Bengaluru.\nYour registered mobile number is +91-98765-21001.\nThe order was placed to your office address in Bellandur.",
+        "unknown_info": "You do not remember the exact dish names or prices, only that there was a dosa and an uttapam."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "1_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "1_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "1_2",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_102"
+          },
+          "info": null
+        },
+        {
+          "action_id": "1_3",
+          "name": "update_order_items",
+          "arguments": {
+            "order_id": "#FD1002",
+            "items_to_remove_dish_ids": [
+              "dish_10204"
+            ],
+            "items_to_add": [
+              {
+                "dish_id": "dish_10201",
+                "quantity": 1,
+                "customizations": {
+                  "spice_level": "medium",
+                  "no_onion": true
+                }
+              }
+            ],
+            "payment_method_id": "wallet_foodie"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "That Onion Uttapam in the order is not suitable because it contains onion and is currently marked unavailable on the menu.",
+        "The agent proposes replacing it with one Masala Dosa from the same restaurant.",
+        "The agent explains the additional amount or refund in INR, and confirms it will be adjusted using Ananya's in-app wallet."
+      ],
+      "nl_assertions": [
+        "Agent must verify the order belongs to Ananya before modifying it.",
+        "Agent should check both the current order contents and the restaurant menu to find a suitable replacement.",
+        "Agent should collect all requested changes and confirm the final bill impact before calling the update_order_items tool.",
+        "Agent should not attempt to modify the order if the status has passed the allowed window for modifications."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Ananya Singh in Bengaluru.\nYour registered mobile number is +91-98765-21001.\nThe order was placed to your office address in Bellandur.\n\nCustomer request:\nYou recently placed order #FD1002 from Madras Idli Corner to your office address.\nThe order includes an Onion Uttapam, but your teammate cannot eat onion today.\n\nNote: You do not remember the exact dish names or prices, only that there was a dosa and an uttapam.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "2",
+    "description": {
+      "purpose": "Handle live delay and apply delay credit correctly for an order already out for delivery.",
+      "relevant_policies": "Tracking and explaining delays; Offers, promo codes, and pricing.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are a busy investment banker in Mumbai who often orders late-night North Indian food while working from home. You are impatient when orders are delayed but will calm down if you get a clear ETA and some compensation.",
+      "instructions": {
+        "task_instructions": "You are frustrated and repeatedly ask where the rider is and how long it will take.\nIf the agent shares a clear, updated ETA and offers a delay credit as shown in their system, you eventually calm down and accept.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "Your dinner order #FD1003 from Bombay Spice Kitchen is showing 'out for delivery' for a long time, and you are worried it might get cold.",
+        "known_info": "You are Rahul Sharma in Mumbai.\nYour registered mobile number is +91-98201-33002.",
+        "unknown_info": "You do not know the exact issue details; you only see that the order is taking unusually long."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "2_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "2_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "2_2",
+          "name": "apply_delay_credit",
+          "arguments": {
+            "order_id": "#FD1003",
+            "issue_id": "iss_2001"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "A clear explanation of the current status of order #FD1003 and the updated ETA in minutes.",
+        "Information that a delay credit of \u20b975 is being applied as per the system.",
+        "Clarification of where the credit will appear (e.g. in Rahul's account wallet or as an automatic discount on the next order)."
+      ],
+      "nl_assertions": [
+        "Agent must not guess the ETA; they must use tool output to describe it.",
+        "Agent should notice the existing delay_watch issue (iss_2001) and apply the eligible delay credit.",
+        "Agent should not offer extra compensation beyond what tools indicate is allowed."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Rahul Sharma in Mumbai.\nYour registered mobile number is +91-98201-33002.\n\nCustomer request:\nYour dinner order #FD1003 from Bombay Spice Kitchen is showing 'out for delivery' for a long time, and you are worried it might get cold.\n\nNote: You do not know the exact issue details; you only see that the order is taking unusually long.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": false
+  },
+  {
+    "id": "3",
+    "description": {
+      "purpose": "Resolve a missing item issue after delivery with a partial refund to the requested method.",
+      "relevant_policies": "Handling issues after delivery \u2192 missing items and refunds.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are a foodie in Hyderabad who frequently orders biryani late at night. You are polite but firm when something goes wrong with the order.",
+      "instructions": {
+        "task_instructions": "You explain calmly that one dessert item did not arrive.\nIf the agent offers a refund equal to the missing item's price to your in-app wallet and explains the timeline, you accept.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "In your last order #FD1005 from Hyderabadi Biryani Darbar, one Double Ka Meetha is missing even though you were charged for two.",
+        "known_info": "You are Farhan Khan from Hyderabad.\nYour registered mobile number is +91-90000-70003.",
+        "unknown_info": "You are not sure about the exact price of the missing dessert."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "3_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "3_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1005"
+          },
+          "info": null
+        },
+        {
+          "action_id": "3_2",
+          "name": "issue_refund_for_items",
+          "arguments": {
+            "order_id": "#FD1005",
+            "issue_id": "iss_2002",
+            "refund_method_id": "wallet_foodie"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Confirmation that one Double Ka Meetha was indeed missing from order #FD1005.",
+        "The exact refund amount in INR (\u20b9149) and that it will be added to Farhan's in-app wallet.",
+        "The expected timeframe for the wallet refund to appear (for example, almost instant or within a few minutes)."
+      ],
+      "nl_assertions": [
+        "Agent verifies the issue using order details instead of trusting the claim blindly.",
+        "Agent correctly identifies the eligible_refund_inr from the issue and does not over- or under-refund.",
+        "Agent clearly explains where the refund will go and the approximate time it will take."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Farhan Khan from Hyderabad.\nYour registered mobile number is +91-90000-70003.\n\nCustomer request:\nIn your last order #FD1005 from Hyderabadi Biryani Darbar, one Double Ka Meetha is missing even though you were charged for two.\n\nNote: You are not sure about the exact price of the missing dessert.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "4",
+    "description": {
+      "purpose": "Prevent an invalid cancellation when an order is already out for delivery, and instead offer tracking and possible compensation.",
+      "relevant_policies": "Cancel order \u2192 User-initiated cancellation rules; Tracking and explaining delays.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are somewhat impatient and try to cancel orders when they are late, even if the food is almost at your doorstep.",
+      "instructions": {
+        "task_instructions": "You insist that the agent cancel the order because it is late.\nIf the agent explains clearly that cancellation is no longer allowed because the rider is already on the way, but offers to help if there are quality issues after delivery, you accept.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "Your order #FD1003 has been 'out for delivery' for a while, and you are tempted to cancel it entirely.",
+        "known_info": "You are Rahul Sharma in Mumbai.\nYour registered mobile number is +91-98201-33002.",
+        "unknown_info": "You are not aware of the exact cancellation rules once the rider has picked up the order."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "4_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "4_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1003"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "A clear explanation that order #FD1003 is already out for delivery and cannot be cancelled.",
+        "Reassurance that if there are quality issues (cold food, spillage, missing items) after delivery, the agent can help with refunds or redelivery based on policy."
+      ],
+      "nl_assertions": [
+        "Agent must refuse to cancel the order once it is out_for_delivery.",
+        "Agent should still provide tracking information and updated ETA based on tools.",
+        "Agent should not attempt to forcibly cancel or mark the order as cancelled in the system."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Rahul Sharma in Mumbai.\nYour registered mobile number is +91-98201-33002.\n\nCustomer request:\nYour order #FD1003 has been 'out for delivery' for a while, and you are tempted to cancel it entirely.\n\nNote: You are not aware of the exact cancellation rules once the rider has picked up the order.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": false
+  },
+  {
+    "id": "5",
+    "description": {
+      "purpose": "Use a past successful order to place a reorder with the same items to the same address and payment method.",
+      "relevant_policies": "Generic action rules; Offers, promo codes, and pricing.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are a repeat customer who likes to reorder exact combinations that worked well previously instead of rebuilding the cart from scratch.",
+      "instructions": {
+        "task_instructions": "You want to quickly repeat a previous breakfast order without manually selecting items.\nIf the agent proposes to reorder the exact same items from the same restaurant to your default home address and confirms the final amount, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You loved your previous breakfast order #FD1001 from Madras Idli Corner and want to reorder the same set for tomorrow morning.",
+        "known_info": "You are Ananya Singh in Bengaluru.\nYour registered mobile number is +91-98765-21001.",
+        "unknown_info": "You do not remember the exact items or quantities; you only remember that it included dosas, idli and filter coffee."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "5_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "5_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "5_2",
+          "name": "reorder_previous_order",
+          "arguments": {
+            "original_order_id": "#FD1001",
+            "new_address_id": "addr_blr_home",
+            "payment_method_id": "upi_ananya_gpay"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Confirmation that the reorder will contain the same items as #FD1001 from Madras Idli Corner.",
+        "The total payable amount in INR for the new order, including any applicable delivery or platform fees.",
+        "The address and payment method that will be used (Ananya's home address and UPI via GPay)."
+      ],
+      "nl_assertions": [
+        "Agent verifies the previous order contents instead of asking the user to list items again.",
+        "Agent confirms address and payment details with the user before placing the reorder.",
+        "Agent does not silently change restaurant or items while reordering."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Ananya Singh in Bengaluru.\nYour registered mobile number is +91-98765-21001.\n\nCustomer request:\nYou loved your previous breakfast order #FD1001 from Madras Idli Corner and want to reorder the same set for tomorrow morning.\n\nNote: You do not remember the exact items or quantities; you only remember that it included dosas, idli and filter coffee.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "6",
+    "description": {
+      "purpose": "User requests current status and ETA for an order already out for delivery.",
+      "relevant_policies": "Tracking and explaining delays.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are anxious about when your food will arrive and want a clear ETA.",
+      "instructions": {
+        "task_instructions": "Ask for the current status and how long until delivery. If the agent gives you a clear status and approximate time in minutes, you are satisfied.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "Your order #FD1003 from Bombay Spice Kitchen has been showing 'out for delivery' for a while. You want to know exactly where it is and when it will reach you.",
+        "known_info": "You are Rahul Sharma in Mumbai. Your registered mobile number is +91-98201-33002.",
+        "unknown_info": "You do not know the delivery partner's name or live tracking link."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "6_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "6_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1003"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Current status of order #FD1003 (out for delivery).",
+        "Updated ETA or approximate time until delivery in minutes."
+      ],
+      "nl_assertions": [
+        "Agent must use tool output for status/ETA and not guess."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Rahul Sharma in Mumbai. Your registered mobile number is +91-98201-33002.\n\nCustomer request:\nYour order #FD1003 from Bombay Spice Kitchen has been showing 'out for delivery' for a while. You want to know exactly where it is and when it will reach you.\n\nNote: You do not know the delivery partner's name or live tracking link.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": false
+  },
+  {
+    "id": "7",
+    "description": {
+      "purpose": "User asks for a detailed bill breakdown for a delivered order.",
+      "relevant_policies": "Offers, promo codes, and pricing.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are careful with expenses and want to understand every charge.",
+      "instructions": {
+        "task_instructions": "Ask why the total was what it was. If the agent breaks down item total, delivery fee, platform fee, packing, tax, and any discount in INR, you are satisfied.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to understand the bill for your last breakfast order #FD1001. The total was around \u20b9497 and you want a line-by-line breakdown.",
+        "known_info": "You are Ananya Singh in Bengaluru. Your registered mobile number is +91-98765-21001.",
+        "unknown_info": "You do not remember the exact breakdown."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "7_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "7_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Breakdown of charges for order #FD1001: item total, delivery fee, platform fee, packing fee, tax, and discount in INR."
+      ],
+      "nl_assertions": null
+    },
+    "ticket": "Customer information:\nYou are Ananya Singh in Bengaluru. Your registered mobile number is +91-98765-21001.\n\nCustomer request:\nYou want to understand the bill for your last breakfast order #FD1001. The total was around \u20b9497 and you want a line-by-line breakdown.\n\nNote: You do not remember the exact breakdown.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": false
+  },
+  {
+    "id": "8",
+    "description": {
+      "purpose": "Cancel pending order with reason 'ordered by mistake' (same as task 0 but different reason).",
+      "relevant_policies": "Cancel order.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You want to cancel because you accidentally placed the order. If the agent confirms free cancellation and no charge, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You placed order #FD1004 by mistake (wrong app). You want to cancel it immediately.",
+        "known_info": "You are Farhan Khan. Your registered mobile number is +91-90000-70003.",
+        "unknown_info": null
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "8_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "8_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1004"
+          },
+          "info": null
+        },
+        {
+          "action_id": "8_2",
+          "name": "cancel_order",
+          "arguments": {
+            "order_id": "#FD1004",
+            "reason": "ordered by mistake"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Cancellation is free; no payment has been captured for order #FD1004."
+      ],
+      "nl_assertions": null
+    },
+    "ticket": "Customer information:\nYou are Farhan Khan. Your registered mobile number is +91-90000-70003.\n\nCustomer request:\nYou placed order #FD1004 by mistake (wrong app). You want to cancel it immediately.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "9",
+    "description": {
+      "purpose": "Agent must not proceed when user provides wrong phone number.",
+      "relevant_policies": "Authentication; deny requests when user cannot be verified.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You give a wrong phone number by mistake. If the agent says they cannot find your account or asks you to verify, you will eventually give the correct number. Do not give the correct number unless the agent asks or refuses to proceed.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to check the status of your order #FD1001.",
+        "known_info": "You are Ananya Singh but you accidentally say your phone is +91-99999-00000 first.",
+        "unknown_info": "You have the correct number +91-98765-21001 but only share it if needed."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [],
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent must not retrieve or display order #FD1001 (or any other user's data) when the user has only provided the wrong phone number +91-99999-00000.",
+        "Agent should indicate that the user could not be found or ask for correct contact details."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Ananya Singh but you accidentally say your phone is +91-99999-00000 first.\n\nCustomer request:\nYou want to check the status of your order #FD1001.\n\nNote: You have the correct number +91-98765-21001 but only share it if needed.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": false
+  },
+  {
+    "id": "10",
+    "description": {
+      "purpose": "Add an item to an existing order (modify items \u2013 add only) before preparation is complete.",
+      "relevant_policies": "Modify order.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You often forget to add a coffee and remember mid-order.",
+      "instructions": {
+        "task_instructions": "You want to add one Filter Coffee to your existing order #FD1002. If the agent confirms the extra charge and updates the order using your wallet, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You placed order #FD1002 to your office. You forgot to add Filter Coffee and want to add one now.",
+        "known_info": "You are Ananya Singh. Mobile +91-98765-21001. Order is from Madras Idli Corner to your office in Bellandur.",
+        "unknown_info": "You are not sure of the exact price of the coffee."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "10_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "10_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "10_2",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_102"
+          },
+          "info": null
+        },
+        {
+          "action_id": "10_3",
+          "name": "update_order_items",
+          "arguments": {
+            "order_id": "#FD1002",
+            "items_to_remove_dish_ids": [],
+            "items_to_add": [
+              {
+                "dish_id": "dish_10203",
+                "quantity": 1,
+                "customizations": {}
+              }
+            ],
+            "payment_method_id": "wallet_foodie"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Extra charge for one Filter Coffee and that it will be paid from wallet."
+      ],
+      "nl_assertions": [
+        "Agent confirms the added item and any price difference before calling update_order_items."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Ananya Singh. Mobile +91-98765-21001. Order is from Madras Idli Corner to your office in Bellandur.\n\nCustomer request:\nYou placed order #FD1002 to your office. You forgot to add Filter Coffee and want to add one now.\n\nNote: You are not sure of the exact price of the coffee.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "11",
+    "description": {
+      "purpose": "Reorder a previous order to the same address.",
+      "relevant_policies": "Generic action rules; reorder.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You want the same dinner as last time (#FD1003) delivered to your home again. If the agent confirms the reorder and total, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to reorder the same Pav Bhaji and Paneer Butter Masala order (#FD1003) to your home address in Mumbai.",
+        "known_info": "You are Rahul Sharma. Mobile +91-98201-33002. You want delivery to your home (Hiranandani).",
+        "unknown_info": null
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "11_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "11_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "11_2",
+          "name": "reorder_previous_order",
+          "arguments": {
+            "original_order_id": "#FD1003",
+            "new_address_id": "addr_mum_home",
+            "payment_method_id": "upi_rahul_phonepe"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Confirmation of reorder with same items and total amount in INR."
+      ],
+      "nl_assertions": null
+    },
+    "ticket": "Customer information:\nYou are Rahul Sharma. Mobile +91-98201-33002. You want delivery to your home (Hiranandani).\n\nCustomer request:\nYou want to reorder the same Pav Bhaji and Paneer Butter Masala order (#FD1003) to your home address in Mumbai.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "12",
+    "description": {
+      "purpose": "User checks restaurant menu then reorders a previous order (multi-step).",
+      "relevant_policies": "Reorder; provide restaurant information.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You like to confirm the menu before reordering.",
+      "instructions": {
+        "task_instructions": "First ask what veg options Hyderabadi Biryani Darbar has. Then say you want to reorder your last order #FD1005 to your home. If the agent gives menu info and then completes the reorder, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to see the menu of Hyderabadi Biryani Darbar (rest_103) and then reorder your previous order #FD1005 to your home in Gachibowli.",
+        "known_info": "You are Farhan Khan. Mobile +91-90000-70003.",
+        "unknown_info": "You do not remember all dish names."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "12_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "12_1",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_103"
+          },
+          "info": null
+        },
+        {
+          "action_id": "12_2",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1005"
+          },
+          "info": null
+        },
+        {
+          "action_id": "12_3",
+          "name": "reorder_previous_order",
+          "arguments": {
+            "original_order_id": "#FD1005",
+            "new_address_id": "addr_hyd_home",
+            "payment_method_id": "upi_farhan_paytm"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Relevant menu or veg options for rest_103.",
+        "Confirmation of reorder #FD1005 and new order total."
+      ],
+      "nl_assertions": [
+        "Agent handles both the menu query and the reorder in one conversation."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Farhan Khan. Mobile +91-90000-70003.\n\nCustomer request:\nYou want to see the menu of Hyderabadi Biryani Darbar (rest_103) and then reorder your previous order #FD1005 to your home in Gachibowli.\n\nNote: You do not remember all dish names.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "13",
+    "description": {
+      "purpose": "User asks for their default address and last order summary.",
+      "relevant_policies": "Provide profile and order information.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "Ask what your default delivery address is and what your last order was. If the agent tells you the address (e.g. Bellandur, home) and summarizes the last order (#FD1001), you are satisfied.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to confirm your default address and what you last ordered.",
+        "known_info": "You are Ananya Singh. Mobile +91-98765-21001.",
+        "unknown_info": null
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "13_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "13_1",
+          "name": "get_user_details",
+          "arguments": {
+            "user_id": "ananya_singh_1001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "13_2",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Default delivery address (e.g. home, Bellandur).",
+        "Summary of last order #FD1001 (restaurant and items)."
+      ],
+      "nl_assertions": null
+    },
+    "ticket": "Customer information:\nYou are Ananya Singh. Mobile +91-98765-21001.\n\nCustomer request:\nYou want to confirm your default address and what you last ordered.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "14",
+    "description": {
+      "purpose": "User asks for status of multiple orders in one request.",
+      "relevant_policies": "Provide order information.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You have two orders and want a quick status on both.",
+      "instructions": {
+        "task_instructions": "Ask for the status of both your orders #FD1001 and #FD1002. If the agent gives you the status of each (e.g. delivered, preparing), you are satisfied.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to know the current status of order #FD1001 and order #FD1002.",
+        "known_info": "You are Ananya Singh. Mobile +91-98765-21001.",
+        "unknown_info": null
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "14_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "14_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "14_2",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Status of order #FD1001.",
+        "Status of order #FD1002."
+      ],
+      "nl_assertions": null
+    },
+    "ticket": "Customer information:\nYou are Ananya Singh. Mobile +91-98765-21001.\n\nCustomer request:\nYou want to know the current status of order #FD1001 and order #FD1002.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "15",
+    "description": {
+      "purpose": "Reorder to a different address (office instead of home).",
+      "relevant_policies": "Reorder; address selection.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You want to repeat your breakfast order #FD1001 but deliver to your office this time. If the agent confirms reorder to office address and the new total, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to reorder the same breakfast as #FD1001 from Madras Idli Corner but deliver to your office in Manyata Tech Park, Bellandur.",
+        "known_info": "You are Ananya Singh. Mobile +91-98765-21001. You have a saved office address.",
+        "unknown_info": null
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "15_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "15_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "15_2",
+          "name": "reorder_previous_order",
+          "arguments": {
+            "original_order_id": "#FD1001",
+            "new_address_id": "addr_blr_office",
+            "payment_method_id": "upi_ananya_gpay"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Reorder to office address and total in INR."
+      ],
+      "nl_assertions": [
+        "Agent confirms the delivery address (office) before placing reorder."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Ananya Singh. Mobile +91-98765-21001. You have a saved office address.\n\nCustomer request:\nYou want to reorder the same breakfast as #FD1001 from Madras Idli Corner but deliver to your office in Manyata Tech Park, Bellandur.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "16",
+    "description": {
+      "purpose": "User requests refund for 'wrong item' but order has no registered issue \u2013 agent must explain policy.",
+      "relevant_policies": "Handling issues after delivery; no refund without verified issue.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are upset and insist you got the wrong item.",
+      "instructions": {
+        "task_instructions": "You say one item in order #FD1001 was wrong. If the agent checks the order and explains that there is no open issue on file or asks you to report via the app so they can verify, you eventually accept. You do not want to be transferred unless the agent refuses to help at all.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "In your delivered order #FD1001 you received one wrong item and want a refund.",
+        "known_info": "You are Ananya Singh. Mobile +91-98765-21001.",
+        "unknown_info": "You are not sure if the issue was already reported."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "16_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "16_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent must not issue a refund without a verified issue or tool indication of eligible refund.",
+        "Agent should explain policy (e.g. no open issue on file, or ask user to report so the issue can be verified) and not make up a refund amount."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Ananya Singh. Mobile +91-98765-21001.\n\nCustomer request:\nIn your delivered order #FD1001 you received one wrong item and want a refund.\n\nNote: You are not sure if the issue was already reported.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": false
+  },
+  {
+    "id": "17",
+    "description": {
+      "purpose": "User asks about restaurant delivery radius and veg-only status.",
+      "relevant_policies": "Provide restaurant information.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are vegetarian and want to know if a restaurant delivers to you.",
+      "instructions": {
+        "task_instructions": "Ask whether Bombay Spice Kitchen (rest_101) delivers to your area and if it is veg-only. If the agent tells you the delivery radius and that it is not veg-only (or lists veg options), you are satisfied.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to know the delivery radius of Bombay Spice Kitchen and whether it is a vegetarian-only restaurant.",
+        "known_info": "You are Rahul Sharma. Mobile +91-98201-33002. You are in Mumbai.",
+        "unknown_info": "You do not know the exact locality name of the restaurant."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "17_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "17_1",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_101"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Delivery radius (in km) for rest_101.",
+        "Whether rest_101 is veg-only or has veg options."
+      ],
+      "nl_assertions": null
+    },
+    "ticket": "Customer information:\nYou are Rahul Sharma. Mobile +91-98201-33002. You are in Mumbai.\n\nCustomer request:\nYou want to know the delivery radius of Bombay Spice Kitchen and whether it is a vegetarian-only restaurant.\n\nNote: You do not know the exact locality name of the restaurant.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "18",
+    "description": {
+      "purpose": "Authenticate by email then provide order status.",
+      "relevant_policies": "Authentication via email; provide order information.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You prefer to identify yourself by email.",
+      "instructions": {
+        "task_instructions": "Give your email ananya.singh@example.in when asked. You want the status of your office order #FD1002. If the agent finds you by email and gives the status, you are satisfied.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to know the status of your order #FD1002 (placed to office).",
+        "known_info": "You are Ananya Singh. Email ananya.singh@example.in.",
+        "unknown_info": "You do not want to give your phone unless the agent asks."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "18_0",
+          "name": "find_user_by_email",
+          "arguments": {
+            "email": "ananya.singh@example.in"
+          },
+          "info": null
+        },
+        {
+          "action_id": "18_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Current status of order #FD1002."
+      ],
+      "nl_assertions": [
+        "Agent authenticates using email when user provides it."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Ananya Singh. Email ananya.singh@example.in.\n\nCustomer request:\nYou want to know the status of your order #FD1002 (placed to office).\n\nNote: You do not want to give your phone unless the agent asks.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": true
+  },
+  {
+    "id": "19",
+    "description": {
+      "purpose": "Agent must refuse to help when user asks about another user's order.",
+      "relevant_policies": "One user per conversation; deny requests for other users' data.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You (Rahul) ask about order #FD1005. You do not mention that it is your friend's order. If the agent authenticates you and then refuses to give details or take action on #FD1005 because it belongs to another user, you accept.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to know the status of order #FD1005 and whether a refund was processed.",
+        "known_info": "You are Rahul Sharma. Mobile +91-98201-33002. Order #FD1005 is actually your friend Farhan's order.",
+        "unknown_info": "You are not sure if the agent will check order ownership."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "19_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "19_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1005"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent must refuse to provide order #FD1005 details or take any action on it once it is established that the order belongs to a different user (Farhan), not the authenticated user (Rahul)."
+      ]
+    },
+    "ticket": "Customer information:\nYou are Rahul Sharma. Mobile +91-98201-33002. Order #FD1005 is actually your friend Farhan's order.\n\nCustomer request:\nYou want to know the status of order #FD1005 and whether a refund was processed.\n\nNote: You are not sure if the agent will check order ownership.\n\nFulfill the request using the available tools. Assume the customer has already agreed to any required confirmations.",
+    "solo_convertible": false
+  }
+]

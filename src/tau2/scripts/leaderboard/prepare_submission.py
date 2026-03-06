@@ -403,6 +403,7 @@ def prepare_submission(
         retail=domain_results.get("retail"),
         airline=domain_results.get("airline"),
         telecom=domain_results.get("telecom"),
+        food_delivery_app=domain_results.get("food_delivery_app"),
     )
 
     submission = Submission(

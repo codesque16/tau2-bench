@@ -54,6 +54,18 @@ from tau2.domains.telecom.environment import (
 from tau2.domains.telecom.environment import (
     get_tasks_split as telecom_domain_get_tasks_split,
 )
+from tau2.domains.food_delivery_app.environment import (
+    get_environment as food_delivery_app_domain_get_environment,
+)
+from tau2.domains.food_delivery_app.environment import (
+    get_tasks as food_delivery_app_domain_get_tasks,
+)
+from tau2.domains.food_delivery_app.environment import (
+    get_tasks_split as food_delivery_app_domain_get_tasks_split,
+)
+from tau2.domains.food_delivery_app.environment import (
+    get_tasks_food_delivery_app_solo as food_delivery_app_domain_get_tasks_solo,
+)
 from tau2.environment.environment import Environment
 from tau2.user.base import BaseUser
 from tau2.user.user_simulator import DummyUser, UserSimulator
@@ -277,6 +289,18 @@ try:
         telecom_domain_get_tasks,
         "telecom-workflow",
         get_task_splits=telecom_domain_get_tasks_split,
+    )
+
+    registry.register_domain(food_delivery_app_domain_get_environment, "food_delivery_app")
+    registry.register_tasks(
+        food_delivery_app_domain_get_tasks,
+        "food_delivery_app",
+        get_task_splits=food_delivery_app_domain_get_tasks_split,
+    )
+    registry.register_tasks(
+        food_delivery_app_domain_get_tasks_solo,
+        "food_delivery_app_solo",
+        get_task_splits=food_delivery_app_domain_get_tasks_split,
     )
 
     logger.debug(

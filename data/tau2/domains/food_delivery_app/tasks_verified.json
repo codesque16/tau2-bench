@@ -1,0 +1,362 @@
+[
+  {
+    "id": "0",
+    "description": {
+      "purpose": "User-initiated free cancellation while order is still pending acceptance.",
+      "relevant_policies": "Cancel order → User-initiated cancellation while status is pending_acceptance.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You are careful about charges and do not want to pay a cancellation fee.\nIf the agent clearly explains that cancellation is free because the restaurant has not accepted the order yet, you are happy to cancel.\nIf the agent says there could be a fee, ask them to double-check before agreeing.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You placed a biryani order (#FD1004) to your home in Gachibowli a few minutes ago, but your friends have suddenly cancelled the plan and you no longer want the food.",
+        "known_info": "You are Farhan Khan from Hyderabad.\nYour registered mobile number is +91-90000-70003.",
+        "unknown_info": "You do not remember the exact restaurant name, only that it was a Hyderabadi biryani place in Gachibowli."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "0_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "0_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1004"
+          },
+          "info": null
+        },
+        {
+          "action_id": "0_2",
+          "name": "cancel_order",
+          "arguments": {
+            "order_id": "#FD1004",
+            "reason": "changed mind"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "The order #FD1004 is still pending acceptance, so cancellation is free.",
+        "No payment has been captured yet; Farhan will not be charged."
+      ],
+      "nl_assertions": [
+        "Agent must authenticate the user using phone number before accessing order details.",
+        "Agent should confirm that the order is in pending_acceptance status before cancelling.",
+        "Agent should clearly state that cancellation is free and that no payment will be taken."
+      ]
+    }
+  },
+  {
+    "id": "1",
+    "description": {
+      "purpose": "Modify items in a preparing order by handling an unavailable dish and price difference correctly.",
+      "relevant_policies": "Modify order → Modifications allowed before or early during preparation, with clear price difference explanation.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are a vegetarian software engineer in Bengaluru, very particular about onions and Jain options when ordering South Indian food during office hours.",
+      "instructions": {
+        "task_instructions": "You ordered breakfast to your office and notice that one of the items includes onion, which your teammate who will share the food cannot eat.\nAsk the agent if they can change that item to another dosa from the same restaurant.\nIf the agent proposes a reasonable replacement and explains the final amount including any wallet adjustments, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You recently placed order #FD1002 from Madras Idli Corner to your office address.\nThe order includes an Onion Uttapam, but your teammate cannot eat onion today.",
+        "known_info": "You are Ananya Singh in Bengaluru.\nYour registered mobile number is +91-98765-21001.\nThe order was placed to your office address in Bellandur.",
+        "unknown_info": "You do not remember the exact dish names or prices, only that there was a dosa and an uttapam."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "1_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "1_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "1_2",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_102"
+          },
+          "info": null
+        },
+        {
+          "action_id": "1_3",
+          "name": "update_order_items",
+          "arguments": {
+            "order_id": "#FD1002",
+            "items_to_remove_dish_ids": ["dish_10204"],
+            "items_to_add": [
+              {
+                "dish_id": "dish_10201",
+                "quantity": 1,
+                "customizations": {
+                  "spice_level": "medium",
+                  "no_onion": true
+                }
+              }
+            ],
+            "payment_method_id": "wallet_foodie"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "That Onion Uttapam in the order is not suitable because it contains onion and is currently marked unavailable on the menu.",
+        "The agent proposes replacing it with one Masala Dosa from the same restaurant.",
+        "The agent explains the additional amount or refund in INR, and confirms it will be adjusted using Ananya's in-app wallet."
+      ],
+      "nl_assertions": [
+        "Agent must verify the order belongs to Ananya before modifying it.",
+        "Agent should check both the current order contents and the restaurant menu to find a suitable replacement.",
+        "Agent should collect all requested changes and confirm the final bill impact before calling the update_order_items tool.",
+        "Agent should not attempt to modify the order if the status has passed the allowed window for modifications."
+      ]
+    }
+  },
+  {
+    "id": "2",
+    "description": {
+      "purpose": "Handle live delay and apply delay credit correctly for an order already out for delivery.",
+      "relevant_policies": "Tracking and explaining delays; Offers, promo codes, and pricing.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are a busy investment banker in Mumbai who often orders late-night North Indian food while working from home. You are impatient when orders are delayed but will calm down if you get a clear ETA and some compensation.",
+      "instructions": {
+        "task_instructions": "You are frustrated and repeatedly ask where the rider is and how long it will take.\nIf the agent shares a clear, updated ETA and offers a delay credit as shown in their system, you eventually calm down and accept.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "Your dinner order #FD1003 from Bombay Spice Kitchen is showing 'out for delivery' for a long time, and you are worried it might get cold.",
+        "known_info": "You are Rahul Sharma in Mumbai.\nYour registered mobile number is +91-98201-33002.",
+        "unknown_info": "You do not know the exact issue details; you only see that the order is taking unusually long."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "2_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "2_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "2_2",
+          "name": "apply_delay_credit",
+          "arguments": {
+            "order_id": "#FD1003",
+            "issue_id": "iss_2001"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "A clear explanation of the current status of order #FD1003 and the updated ETA in minutes.",
+        "Information that a delay credit of ₹75 is being applied as per the system.",
+        "Clarification of where the credit will appear (e.g. in Rahul's account wallet or as an automatic discount on the next order)."
+      ],
+      "nl_assertions": [
+        "Agent must not guess the ETA; they must use tool output to describe it.",
+        "Agent should notice the existing delay_watch issue (iss_2001) and apply the eligible delay credit.",
+        "Agent should not offer extra compensation beyond what tools indicate is allowed."
+      ]
+    }
+  },
+  {
+    "id": "3",
+    "description": {
+      "purpose": "Resolve a missing item issue after delivery with a partial refund to the requested method.",
+      "relevant_policies": "Handling issues after delivery → missing items and refunds.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are a foodie in Hyderabad who frequently orders biryani late at night. You are polite but firm when something goes wrong with the order.",
+      "instructions": {
+        "task_instructions": "You explain calmly that one dessert item did not arrive.\nIf the agent offers a refund equal to the missing item's price to your in-app wallet and explains the timeline, you accept.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "In your last order #FD1005 from Hyderabadi Biryani Darbar, one Double Ka Meetha is missing even though you were charged for two.",
+        "known_info": "You are Farhan Khan from Hyderabad.\nYour registered mobile number is +91-90000-70003.",
+        "unknown_info": "You are not sure about the exact price of the missing dessert."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "3_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "3_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1005"
+          },
+          "info": null
+        },
+        {
+          "action_id": "3_2",
+          "name": "issue_refund_for_items",
+          "arguments": {
+            "order_id": "#FD1005",
+            "issue_id": "iss_2002",
+            "refund_method_id": "wallet_foodie"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Confirmation that one Double Ka Meetha was indeed missing from order #FD1005.",
+        "The exact refund amount in INR (₹149) and that it will be added to Farhan's in-app wallet.",
+        "The expected timeframe for the wallet refund to appear (for example, almost instant or within a few minutes)."
+      ],
+      "nl_assertions": [
+        "Agent verifies the issue using order details instead of trusting the claim blindly.",
+        "Agent correctly identifies the eligible_refund_inr from the issue and does not over- or under-refund.",
+        "Agent clearly explains where the refund will go and the approximate time it will take."
+      ]
+    }
+  },
+  {
+    "id": "4",
+    "description": {
+      "purpose": "Prevent an invalid cancellation when an order is already out for delivery, and instead offer tracking and possible compensation.",
+      "relevant_policies": "Cancel order → User-initiated cancellation rules; Tracking and explaining delays.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are somewhat impatient and try to cancel orders when they are late, even if the food is almost at your doorstep.",
+      "instructions": {
+        "task_instructions": "You insist that the agent cancel the order because it is late.\nIf the agent explains clearly that cancellation is no longer allowed because the rider is already on the way, but offers to help if there are quality issues after delivery, you accept.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "Your order #FD1003 has been 'out for delivery' for a while, and you are tempted to cancel it entirely.",
+        "known_info": "You are Rahul Sharma in Mumbai.\nYour registered mobile number is +91-98201-33002.",
+        "unknown_info": "You are not aware of the exact cancellation rules once the rider has picked up the order."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "4_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "4_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1003"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "A clear explanation that order #FD1003 is already out for delivery and cannot be cancelled.",
+        "Reassurance that if there are quality issues (cold food, spillage, missing items) after delivery, the agent can help with refunds or redelivery based on policy."
+      ],
+      "nl_assertions": [
+        "Agent must refuse to cancel the order once it is out_for_delivery.",
+        "Agent should still provide tracking information and updated ETA based on tools.",
+        "Agent should not attempt to forcibly cancel or mark the order as cancelled in the system."
+      ]
+    }
+  },
+  {
+    "id": "5",
+    "description": {
+      "purpose": "Use a past successful order to place a reorder with the same items to the same address and payment method.",
+      "relevant_policies": "Generic action rules; Offers, promo codes, and pricing.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You are a repeat customer who likes to reorder exact combinations that worked well previously instead of rebuilding the cart from scratch.",
+      "instructions": {
+        "task_instructions": "You want to quickly repeat a previous breakfast order without manually selecting items.\nIf the agent proposes to reorder the exact same items from the same restaurant to your default home address and confirms the final amount, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You loved your previous breakfast order #FD1001 from Madras Idli Corner and want to reorder the same set for tomorrow morning.",
+        "known_info": "You are Ananya Singh in Bengaluru.\nYour registered mobile number is +91-98765-21001.",
+        "unknown_info": "You do not remember the exact items or quantities; you only remember that it included dosas, idli and filter coffee."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "5_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "5_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "5_2",
+          "name": "reorder_previous_order",
+          "arguments": {
+            "original_order_id": "#FD1001",
+            "new_address_id": "addr_blr_home",
+            "payment_method_id": "upi_ananya_gpay"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [
+        "Confirmation that the reorder will contain the same items as #FD1001 from Madras Idli Corner.",
+        "The total payable amount in INR for the new order, including any applicable delivery or platform fees.",
+        "The address and payment method that will be used (Ananya's home address and UPI via GPay)."
+      ],
+      "nl_assertions": [
+        "Agent verifies the previous order contents instead of asking the user to list items again.",
+        "Agent confirms address and payment details with the user before placing the reorder.",
+        "Agent does not silently change restaurant or items while reordering."
+      ]
+    }
+  }
+]
+

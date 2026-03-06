@@ -75,6 +75,7 @@ class Results(BaseModelNoExtra):
     retail: Optional[DomainResults] = None
     airline: Optional[DomainResults] = None
     telecom: Optional[DomainResults] = None
+    food_delivery_app: Optional[DomainResults] = None
 
     def get_domain_results(self, domain: str) -> DomainResults:
         """Get the domain results for a given domain."""
@@ -84,6 +85,8 @@ class Results(BaseModelNoExtra):
             return self.airline
         elif domain == "telecom":
             return self.telecom
+        elif domain == "food_delivery_app":
+            return self.food_delivery_app
         else:
             raise ValueError(f"Invalid domain: {domain}")
 
