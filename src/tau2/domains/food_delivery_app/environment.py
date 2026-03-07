@@ -28,6 +28,7 @@ def get_environment(
         domain_name="food_delivery_app",
         policy=policy,
         tools=tools,
+        solo_mode=solo_mode,
     )
 
 
