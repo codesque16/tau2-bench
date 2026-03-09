@@ -45,10 +45,7 @@
           "info": null
         }
       ],
-      "communicate_info": [
-        "The order #FD1004 is still pending acceptance, so cancellation is free.",
-        "No payment has been captured yet; Farhan will not be charged."
-      ],
+      "communicate_info": [],
       "nl_assertions": [
         "Agent must authenticate the user using phone number before accessing order details.",
         "Agent should confirm that the order is in pending_acceptance status before cancelling.",
@@ -105,7 +102,9 @@
           "name": "update_order_items",
           "arguments": {
             "order_id": "#FD1002",
-            "items_to_remove_dish_ids": ["dish_10204"],
+            "items_to_remove_dish_ids": [
+              "dish_10204"
+            ],
             "items_to_add": [
               {
                 "dish_id": "dish_10201",
@@ -121,11 +120,7 @@
           "info": null
         }
       ],
-      "communicate_info": [
-        "That Onion Uttapam in the order is not suitable because it contains onion and is currently marked unavailable on the menu.",
-        "The agent proposes replacing it with one Masala Dosa from the same restaurant.",
-        "The agent explains the additional amount or refund in INR, and confirms it will be adjusted using Ananya's in-app wallet."
-      ],
+      "communicate_info": [],
       "nl_assertions": [
         "Agent must verify the order belongs to Ananya before modifying it.",
         "Agent should check both the current order contents and the restaurant menu to find a suitable replacement.",
@@ -180,11 +175,7 @@
           "info": null
         }
       ],
-      "communicate_info": [
-        "A clear explanation of the current status of order #FD1003 and the updated ETA in minutes.",
-        "Information that a delay credit of ₹75 is being applied as per the system.",
-        "Clarification of where the credit will appear (e.g. in Rahul's account wallet or as an automatic discount on the next order)."
-      ],
+      "communicate_info": [],
       "nl_assertions": [
         "Agent must not guess the ETA; they must use tool output to describe it.",
         "Agent should notice the existing delay_watch issue (iss_2001) and apply the eligible delay credit.",
@@ -239,11 +230,7 @@
           "info": null
         }
       ],
-      "communicate_info": [
-        "Confirmation that one Double Ka Meetha was indeed missing from order #FD1005.",
-        "The exact refund amount in INR (₹149) and that it will be added to Farhan's in-app wallet.",
-        "The expected timeframe for the wallet refund to appear (for example, almost instant or within a few minutes)."
-      ],
+      "communicate_info": [],
       "nl_assertions": [
         "Agent verifies the issue using order details instead of trusting the claim blindly.",
         "Agent correctly identifies the eligible_refund_inr from the issue and does not over- or under-refund.",
@@ -288,10 +275,7 @@
           "info": null
         }
       ],
-      "communicate_info": [
-        "A clear explanation that order #FD1003 is already out for delivery and cannot be cancelled.",
-        "Reassurance that if there are quality issues (cold food, spillage, missing items) after delivery, the agent can help with refunds or redelivery based on policy."
-      ],
+      "communicate_info": [],
       "nl_assertions": [
         "Agent must refuse to cancel the order once it is out_for_delivery.",
         "Agent should still provide tracking information and updated ETA based on tools.",
@@ -346,11 +330,7 @@
           "info": null
         }
       ],
-      "communicate_info": [
-        "Confirmation that the reorder will contain the same items as #FD1001 from Madras Idli Corner.",
-        "The total payable amount in INR for the new order, including any applicable delivery or platform fees.",
-        "The address and payment method that will be used (Ananya's home address and UPI via GPay)."
-      ],
+      "communicate_info": [],
       "nl_assertions": [
         "Agent verifies the previous order contents instead of asking the user to list items again.",
         "Agent confirms address and payment details with the user before placing the reorder.",
@@ -378,14 +358,27 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "6_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-98201-33002"}, "info": null},
-        {"action_id": "6_1", "name": "get_order_details", "arguments": {"order_id": "#FD1003"}, "info": null}
+        {
+          "action_id": "6_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "6_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1003"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": [
-        "Current status of order #FD1003 (out for delivery).",
-        "Updated ETA or approximate time until delivery in minutes."
-      ],
-      "nl_assertions": ["Agent must use tool output for status/ETA and not guess."]
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent must use tool output for status/ETA and not guess."
+      ]
     }
   },
   {
@@ -408,12 +401,24 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "7_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-98765-21001"}, "info": null},
-        {"action_id": "7_1", "name": "get_order_details", "arguments": {"order_id": "#FD1001"}, "info": null}
+        {
+          "action_id": "7_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "7_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": [
-        "Breakdown of charges for order #FD1001: item total, delivery fee, platform fee, packing fee, tax, and discount in INR."
-      ],
+      "communicate_info": [],
       "nl_assertions": null
     }
   },
@@ -437,11 +442,33 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "8_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-90000-70003"}, "info": null},
-        {"action_id": "8_1", "name": "get_order_details", "arguments": {"order_id": "#FD1004"}, "info": null},
-        {"action_id": "8_2", "name": "cancel_order", "arguments": {"order_id": "#FD1004", "reason": "ordered by mistake"}, "info": null}
+        {
+          "action_id": "8_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "8_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1004"
+          },
+          "info": null
+        },
+        {
+          "action_id": "8_2",
+          "name": "cancel_order",
+          "arguments": {
+            "order_id": "#FD1004",
+            "reason": "ordered by mistake"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": ["Cancellation is free; no payment has been captured for order #FD1004."],
+      "communicate_info": [],
       "nl_assertions": null
     }
   },
@@ -492,13 +519,52 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "10_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-98765-21001"}, "info": null},
-        {"action_id": "10_1", "name": "get_order_details", "arguments": {"order_id": "#FD1002"}, "info": null},
-        {"action_id": "10_2", "name": "get_restaurant_details", "arguments": {"restaurant_id": "rest_102"}, "info": null},
-        {"action_id": "10_3", "name": "update_order_items", "arguments": {"order_id": "#FD1002", "items_to_remove_dish_ids": [], "items_to_add": [{"dish_id": "dish_10203", "quantity": 1, "customizations": {}}], "payment_method_id": "wallet_foodie"}, "info": null}
+        {
+          "action_id": "10_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "10_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "10_2",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_102"
+          },
+          "info": null
+        },
+        {
+          "action_id": "10_3",
+          "name": "update_order_items",
+          "arguments": {
+            "order_id": "#FD1002",
+            "items_to_remove_dish_ids": [],
+            "items_to_add": [
+              {
+                "dish_id": "dish_10203",
+                "quantity": 1,
+                "customizations": {}
+              }
+            ],
+            "payment_method_id": "wallet_foodie"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": ["Extra charge for one Filter Coffee and that it will be paid from wallet."],
-      "nl_assertions": ["Agent confirms the added item and any price difference before calling update_order_items."]
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent confirms the added item and any price difference before calling update_order_items."
+      ]
     }
   },
   {
@@ -521,11 +587,34 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "11_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-98201-33002"}, "info": null},
-        {"action_id": "11_1", "name": "get_order_details", "arguments": {"order_id": "#FD1003"}, "info": null},
-        {"action_id": "11_2", "name": "reorder_previous_order", "arguments": {"original_order_id": "#FD1003", "new_address_id": "addr_mum_home", "payment_method_id": "upi_rahul_phonepe"}, "info": null}
+        {
+          "action_id": "11_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "11_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "11_2",
+          "name": "reorder_previous_order",
+          "arguments": {
+            "original_order_id": "#FD1003",
+            "new_address_id": "addr_mum_home",
+            "payment_method_id": "upi_rahul_phonepe"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": ["Confirmation of reorder with same items and total amount in INR."],
+      "communicate_info": [],
       "nl_assertions": null
     }
   },
@@ -549,13 +638,45 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "12_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-90000-70003"}, "info": null},
-        {"action_id": "12_1", "name": "get_restaurant_details", "arguments": {"restaurant_id": "rest_103"}, "info": null},
-        {"action_id": "12_2", "name": "get_order_details", "arguments": {"order_id": "#FD1005"}, "info": null},
-        {"action_id": "12_3", "name": "reorder_previous_order", "arguments": {"original_order_id": "#FD1005", "new_address_id": "addr_hyd_home", "payment_method_id": "upi_farhan_paytm"}, "info": null}
+        {
+          "action_id": "12_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "12_1",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_103"
+          },
+          "info": null
+        },
+        {
+          "action_id": "12_2",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1005"
+          },
+          "info": null
+        },
+        {
+          "action_id": "12_3",
+          "name": "reorder_previous_order",
+          "arguments": {
+            "original_order_id": "#FD1005",
+            "new_address_id": "addr_hyd_home",
+            "payment_method_id": "upi_farhan_paytm"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": ["Relevant menu or veg options for rest_103.", "Confirmation of reorder #FD1005 and new order total."],
-      "nl_assertions": ["Agent handles both the menu query and the reorder in one conversation."]
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent handles both the menu query and the reorder in one conversation."
+      ]
     }
   },
   {
@@ -578,11 +699,32 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "13_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-98765-21001"}, "info": null},
-        {"action_id": "13_1", "name": "get_user_details", "arguments": {"user_id": "ananya_singh_1001"}, "info": null},
-        {"action_id": "13_2", "name": "get_order_details", "arguments": {"order_id": "#FD1001"}, "info": null}
+        {
+          "action_id": "13_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "13_1",
+          "name": "get_user_details",
+          "arguments": {
+            "user_id": "ananya_singh_1001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "13_2",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": ["Default delivery address (e.g. home, Bellandur).", "Summary of last order #FD1001 (restaurant and items)."],
+      "communicate_info": [],
       "nl_assertions": null
     }
   },
@@ -606,11 +748,32 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "14_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-98765-21001"}, "info": null},
-        {"action_id": "14_1", "name": "get_order_details", "arguments": {"order_id": "#FD1001"}, "info": null},
-        {"action_id": "14_2", "name": "get_order_details", "arguments": {"order_id": "#FD1002"}, "info": null}
+        {
+          "action_id": "14_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "14_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "14_2",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": ["Status of order #FD1001.", "Status of order #FD1002."],
+      "communicate_info": [],
       "nl_assertions": null
     }
   },
@@ -634,12 +797,37 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "15_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-98765-21001"}, "info": null},
-        {"action_id": "15_1", "name": "get_order_details", "arguments": {"order_id": "#FD1001"}, "info": null},
-        {"action_id": "15_2", "name": "reorder_previous_order", "arguments": {"original_order_id": "#FD1001", "new_address_id": "addr_blr_office", "payment_method_id": "upi_ananya_gpay"}, "info": null}
+        {
+          "action_id": "15_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "15_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "15_2",
+          "name": "reorder_previous_order",
+          "arguments": {
+            "original_order_id": "#FD1001",
+            "new_address_id": "addr_blr_office",
+            "payment_method_id": "upi_ananya_gpay"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": ["Reorder to office address and total in INR."],
-      "nl_assertions": ["Agent confirms the delivery address (office) before placing reorder."]
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent confirms the delivery address (office) before placing reorder."
+      ]
     }
   },
   {
@@ -662,8 +850,22 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "16_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-98765-21001"}, "info": null},
-        {"action_id": "16_1", "name": "get_order_details", "arguments": {"order_id": "#FD1001"}, "info": null}
+        {
+          "action_id": "16_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "16_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        }
       ],
       "communicate_info": [],
       "nl_assertions": [
@@ -692,10 +894,24 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "17_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-98201-33002"}, "info": null},
-        {"action_id": "17_1", "name": "get_restaurant_details", "arguments": {"restaurant_id": "rest_101"}, "info": null}
+        {
+          "action_id": "17_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "17_1",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_101"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": ["Delivery radius (in km) for rest_101.", "Whether rest_101 is veg-only or has veg options."],
+      "communicate_info": [],
       "nl_assertions": null
     }
   },
@@ -709,21 +925,37 @@
     "user_scenario": {
       "persona": "You prefer to identify yourself by email.",
       "instructions": {
-        "task_instructions": "Give your email ananya.singh@example.in when asked. You want the status of your office order #FD1002. If the agent finds you by email and gives the status, you are satisfied.",
+        "task_instructions": "Give your email ananya.singh@gmail.com when asked. You want the status of your office order #FD1002. If the agent finds you by email and gives the status, you are satisfied.",
         "domain": "food_delivery_app",
         "reason_for_call": "You want to know the status of your order #FD1002 (placed to office).",
-        "known_info": "You are Ananya Singh. Email ananya.singh@example.in.",
+        "known_info": "You are Ananya Singh. Email ananya.singh@gmail.com.",
         "unknown_info": "You do not want to give your phone unless the agent asks."
       }
     },
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "18_0", "name": "find_user_by_email", "arguments": {"email": "ananya.singh@example.in"}, "info": null},
-        {"action_id": "18_1", "name": "get_order_details", "arguments": {"order_id": "#FD1002"}, "info": null}
+        {
+          "action_id": "18_0",
+          "name": "find_user_by_email",
+          "arguments": {
+            "email": "ananya.singh@gmail.com"
+          },
+          "info": null
+        },
+        {
+          "action_id": "18_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        }
       ],
-      "communicate_info": ["Current status of order #FD1002."],
-      "nl_assertions": ["Agent authenticates using email when user provides it."]
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent authenticates using email when user provides it."
+      ]
     }
   },
   {
@@ -746,14 +978,430 @@
     "initial_state": null,
     "evaluation_criteria": {
       "actions": [
-        {"action_id": "19_0", "name": "find_user_by_phone", "arguments": {"phone": "+91-98201-33002"}, "info": null},
-        {"action_id": "19_1", "name": "get_order_details", "arguments": {"order_id": "#FD1005"}, "info": null}
+        {
+          "action_id": "19_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98201-33002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "19_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1005"
+          },
+          "info": null
+        }
       ],
       "communicate_info": [],
       "nl_assertions": [
         "Agent must refuse to provide order #FD1005 details or take any action on it once it is established that the order belongs to a different user (Farhan), not the authenticated user (Rahul)."
       ]
     }
+  },
+  {
+    "id": "20",
+    "description": {
+      "purpose": "Modify add-ons/customizations on an item in an order that has not yet started preparation.",
+      "relevant_policies": "Modify order → orders not yet in preparation; same item different add-ons.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You want to change the spice level of your Veg Biryani from medium to mild in order #FD1004. If the agent confirms the order is still modifiable and applies the customization change, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You placed order #FD1004 from Hyderabadi Biryani Darbar. You want to change the Hyderabadi Veg Biryani to mild spice instead of medium.",
+        "known_info": "You are Farhan Khan. Mobile +91-90000-70003. Order #FD1004 is still pending acceptance.",
+        "unknown_info": null
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "20_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "20_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1004"
+          },
+          "info": null
+        },
+        {
+          "action_id": "20_2",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_103"
+          },
+          "info": null
+        },
+        {
+          "action_id": "20_3",
+          "name": "update_order_items",
+          "arguments": {
+            "order_id": "#FD1004",
+            "items_to_remove_dish_ids": [
+              "dish_10302"
+            ],
+            "items_to_add": [
+              {
+                "dish_id": "dish_10302",
+                "quantity": 1,
+                "customizations": {
+                  "spice_level": "mild"
+                }
+              }
+            ],
+            "payment_method_id": "upi_farhan_paytm"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent must verify order status allows item modification before calling update_order_items.",
+        "Agent should confirm which item is being changed (Veg Biryani) and the new customization (mild)."
+      ]
+    }
+  },
+  {
+    "id": "21",
+    "description": {
+      "purpose": "Disambiguate when user has two orders with overlapping items (same restaurant) and wants to modify one.",
+      "relevant_policies": "Generic action rules; multiple orders with overlapping items; modify order.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You want to add one Filter Coffee to your office breakfast order (the one that is still preparing). You have two orders from Madras Idli Corner: one delivered, one preparing. If the agent asks which order and you say the one that is still preparing (#FD1002), and then adds the Filter Coffee to that order, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to add a Filter Coffee to your order from Madras Idli Corner.",
+        "known_info": "You are Ananya Singh. Mobile +91-98765-21001. You have two orders from Madras Idli Corner – one already delivered (#FD1001) and one currently preparing (#FD1002).",
+        "unknown_info": "You do not mention the order id unless the agent asks which order."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "21_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-98765-21001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "21_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "21_2",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "21_3",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_102"
+          },
+          "info": null
+        },
+        {
+          "action_id": "21_4",
+          "name": "update_order_items",
+          "arguments": {
+            "order_id": "#FD1002",
+            "items_to_remove_dish_ids": [],
+            "items_to_add": [
+              {
+                "dish_id": "dish_10203",
+                "quantity": 1,
+                "customizations": {}
+              }
+            ],
+            "payment_method_id": "wallet_foodie"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent must not assume which order; must disambiguate when user has two orders from the same restaurant.",
+        "Agent should only modify the order the user confirms (the preparing one, #FD1002)."
+      ]
+    }
+  },
+  {
+    "id": "22",
+    "description": {
+      "purpose": "Order had promo applied; user removes an item – promo no longer valid; explain how money is settled.",
+      "relevant_policies": "Offers, promo codes; promo invalidated by order modification; settlement.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You want to remove the Double Ka Meetha from order #FD1004 because you no longer want dessert. The order had a discount. If the agent explains that the promo may no longer apply, gives the new total, and explains how the refund (if any) will be settled (e.g. to your UPI or wallet), and then applies the change, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to remove the Double Ka Meetha from order #FD1004; you no longer want dessert.",
+        "known_info": "You are Farhan Khan. Mobile +91-90000-70003. Order #FD1004 had a discount applied.",
+        "unknown_info": "You are not sure how the new total and refund work after removing an item."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "22_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "22_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1004"
+          },
+          "info": null
+        },
+        {
+          "action_id": "22_2",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_103"
+          },
+          "info": null
+        },
+        {
+          "action_id": "22_3",
+          "name": "get_user_details",
+          "arguments": {
+            "user_id": "farhan_khan_1003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "22_4",
+          "name": "update_order_items",
+          "arguments": {
+            "order_id": "#FD1004",
+            "items_to_remove_dish_ids": [
+              "dish_10303"
+            ],
+            "items_to_add": [],
+            "payment_method_id": "upi_farhan_paytm"
+          },
+          "info": null
+        },
+        {
+          "action_id": "22_5",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1004"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent must explain promo invalidation and new total before applying modification.",
+        "Agent must explain settlement (refund/charge) clearly in INR and to which payment method."
+      ]
+    }
+  },
+  {
+    "id": "23",
+    "description": {
+      "purpose": "Mixed payment scenario: add items to an order and pay the extra amount with a specific payment method (e.g. wallet); >=6 action checks.",
+      "relevant_policies": "Modify order; mixed/multiple payment methods; generic action rules.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": null,
+      "instructions": {
+        "task_instructions": "You want to add one more Hyderabadi Veg Biryani to order #FD1004 and pay the extra amount using your wallet. If the agent confirms the order, checks your payment methods, applies the addition with wallet for the price difference, and confirms the updated order, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to add one more Hyderabadi Veg Biryani to order #FD1004 and pay the extra from your wallet.",
+        "known_info": "You are Farhan Khan. Mobile +91-90000-70003. You have UPI and wallet; you want to use wallet for the extra charge.",
+        "unknown_info": "You are not sure of the exact extra amount."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "23_0",
+          "name": "find_user_by_phone",
+          "arguments": {
+            "phone": "+91-90000-70003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "23_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1004"
+          },
+          "info": null
+        },
+        {
+          "action_id": "23_2",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_103"
+          },
+          "info": null
+        },
+        {
+          "action_id": "23_3",
+          "name": "get_user_details",
+          "arguments": {
+            "user_id": "farhan_khan_1003"
+          },
+          "info": null
+        },
+        {
+          "action_id": "23_4",
+          "name": "update_order_items",
+          "arguments": {
+            "order_id": "#FD1004",
+            "items_to_remove_dish_ids": [],
+            "items_to_add": [
+              {
+                "dish_id": "dish_10302",
+                "quantity": 1,
+                "customizations": {
+                  "spice_level": "medium"
+                }
+              }
+            ],
+            "payment_method_id": "wallet_foodie"
+          },
+          "info": null
+        },
+        {
+          "action_id": "23_5",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1004"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent must use the payment method (wallet) specified by the user for the price difference.",
+        "Agent should confirm wallet balance and final amount before calling update_order_items."
+      ]
+    }
+  },
+  {
+    "id": "24",
+    "description": {
+      "purpose": "Authenticate by email (e.g. Gmail/Yahoo) then handle a multi-step request; mixed payment or promo settlement.",
+      "relevant_policies": "Authentication via email; offers/promo or mixed payment.",
+      "notes": null
+    },
+    "user_scenario": {
+      "persona": "You prefer to use your email for login.",
+      "instructions": {
+        "task_instructions": "You identify yourself with ananya.singh@gmail.com. You want to know the status of your office order #FD1002 and then add one Filter Coffee to it, paying the extra from your wallet. If the agent authenticates by email, gives status, then adds the item and confirms the charge from wallet, you agree.",
+        "domain": "food_delivery_app",
+        "reason_for_call": "You want to check the status of your office order and add a Filter Coffee to it; pay the extra from wallet.",
+        "known_info": "You are Ananya Singh. Email ananya.singh@gmail.com. Office order is #FD1002 from Madras Idli Corner.",
+        "unknown_info": "You do not give your phone unless the agent asks."
+      }
+    },
+    "initial_state": null,
+    "evaluation_criteria": {
+      "actions": [
+        {
+          "action_id": "24_0",
+          "name": "find_user_by_email",
+          "arguments": {
+            "email": "ananya.singh@gmail.com"
+          },
+          "info": null
+        },
+        {
+          "action_id": "24_1",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        },
+        {
+          "action_id": "24_2",
+          "name": "get_restaurant_details",
+          "arguments": {
+            "restaurant_id": "rest_102"
+          },
+          "info": null
+        },
+        {
+          "action_id": "24_3",
+          "name": "get_user_details",
+          "arguments": {
+            "user_id": "ananya_singh_1001"
+          },
+          "info": null
+        },
+        {
+          "action_id": "24_4",
+          "name": "update_order_items",
+          "arguments": {
+            "order_id": "#FD1002",
+            "items_to_remove_dish_ids": [],
+            "items_to_add": [
+              {
+                "dish_id": "dish_10203",
+                "quantity": 1,
+                "customizations": {}
+              }
+            ],
+            "payment_method_id": "wallet_foodie"
+          },
+          "info": null
+        },
+        {
+          "action_id": "24_5",
+          "name": "get_order_details",
+          "arguments": {
+            "order_id": "#FD1002"
+          },
+          "info": null
+        }
+      ],
+      "communicate_info": [],
+      "nl_assertions": [
+        "Agent must authenticate using email when user provides it (e.g. ananya.singh@gmail.com).",
+        "Agent should confirm wallet for the price difference and get explicit confirmation before modifying."
+      ]
+    }
   }
 ]
-

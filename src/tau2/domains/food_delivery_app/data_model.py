@@ -16,6 +16,10 @@ class Dish(BaseModel):
     price_inr: float = Field(description="Price in Indian Rupees")
     available: bool = Field(description="Whether the dish is currently available")
     tags: List[str] = Field(default_factory=list, description="Tags e.g. no_egg, popular")
+    possible_customizations: List[str] = Field(
+        default_factory=list,
+        description="Customization options e.g. spice_level, no_onion, extra_onion",
+    )
 
 
 class Restaurant(BaseModel):

@@ -163,8 +163,8 @@ class FoodDeliveryAppTools(ToolKitBase):
         self,
         order_id: str,
         items_to_remove_dish_ids: List[str],
-        items_to_add: List[Dict[str, Any]],
         payment_method_id: str,
+        items_to_add: Optional[List[Dict[str, Any]]] = None,
     ) -> Order:
         """
         Update items in an order (remove some, add others). Only allowed when the order is
@@ -174,8 +174,8 @@ class FoodDeliveryAppTools(ToolKitBase):
         Args:
             order_id: The order id, e.g. '#FD1002'.
             items_to_remove_dish_ids: List of dish_ids to remove from the order (by position/item).
-            items_to_add: List of dicts with keys: dish_id, quantity, customizations (optional).
             payment_method_id: Payment method to use for any extra charge or to receive refund, e.g. 'wallet_foodie'.
+            items_to_add: List of dicts with keys: dish_id, quantity, customizations (optional). Defaults to empty if omitted.
 
         Returns:
             The updated order.
@@ -183,6 +183,8 @@ class FoodDeliveryAppTools(ToolKitBase):
         Raises:
             ValueError: If the order is not modifiable or items are invalid.
         """
+        if items_to_add is None:
+            items_to_add = []
         order = self._get_order(order_id)
         if order.status not in ("pending_acceptance", "accepted", "preparing"):
             raise ValueError("Order items can only be modified before or early in preparation.")
