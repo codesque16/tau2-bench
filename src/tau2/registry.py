@@ -34,9 +34,11 @@ from tau2.domains.retail.environment import (
 )
 from tau2.domains.retail.environment import (
     get_tasks_retail_solo_comms as retail_domain_get_tasks_solo_comms,
+    get_tasks_retail_solo_perturb as retail_domain_get_tasks_perturb
 )
 from tau2.domains.retail.environment import (
     get_tasks_split as retail_domain_get_tasks_split,
+    get_perturb_tasks_split as retail_domain_get_perturb_tasks_split
 )
 from tau2.domains.telecom.environment import (
     get_environment_manual_policy as telecom_domain_get_environment_manual_policy,
@@ -255,7 +257,7 @@ try:
     registry.register_domain(retail_domain_get_environment, "retail")
     registry.register_tasks(
         retail_domain_get_tasks,
-        "retail",
+        "retail_orig",
         get_task_splits=retail_domain_get_tasks_split,
     )
     registry.register_tasks(
@@ -272,6 +274,12 @@ try:
         retail_domain_get_tasks_solo_comms,
         "retail_solo_comms",
         get_task_splits=retail_domain_get_tasks_split,
+    )
+
+    registry.register_tasks(
+        retail_domain_get_tasks_perturb,
+        "retail_perturb",
+        get_task_splits=retail_domain_get_perturb_tasks_split,
     )
 
     registry.register_domain(telecom_domain_get_environment_manual_policy, "telecom")

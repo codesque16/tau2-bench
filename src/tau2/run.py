@@ -214,7 +214,7 @@ def run_domain(config: RunConfig) -> Results:
     if save_to is None:
         save_to = make_run_name(config)
     save_to = DATA_DIR / "simulations" / f"{save_to}.json"
-    top_span_name = config.run_name if config.run_name else "simulation_run"
+    top_span_name = config.run_name if config.run_name else f"[{config.agent}][{config.llm_agent}][{config.llm_user}]"
     # First argument is the span name shown in Logfire (use run name from --name)
     with logfire.span(
         top_span_name,

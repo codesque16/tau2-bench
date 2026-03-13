@@ -27,8 +27,15 @@
     const rewardClass = pass ? "pass" : "fail";
     const rewardLabel = pass ? "Pass" : "Fail";
     const scenario = (t.scenario_preview || "").trim() || "—";
+    
+    // We want the viewer to show the original task_id, but load the file by sim_id
     let viewUrl = "viewer.html?task=" + encodeURIComponent(t.task_id);
-    if (runId) viewUrl = "viewer.html?run=" + encodeURIComponent(runId) + "&task=" + encodeURIComponent(t.task_id);
+    if (t.sim_id && t.sim_id !== t.task_id) {
+      viewUrl += "&sim=" + encodeURIComponent(t.sim_id);
+    }
+    if (runId) {
+      viewUrl += "&run=" + encodeURIComponent(runId);
+    }
     return (
       '<tr data-pass="' + pass + '">' +
       '<td class="task-id">' + escapeHtml(t.task_id) + '</td>' +
@@ -125,7 +132,73 @@
         if (!run) return;
         var acc = run.accuracy != null ? run.accuracy : (run.num_tasks ? Math.round(100 * (run.num_passed || 0) / run.num_tasks) : 0);
         var badge = '<span class="accuracy-badge ' + accuracyClass(acc) + '">' + (run.num_passed != null ? run.num_passed + "/" + run.num_tasks : run.num_tasks) + " passed · " + acc + "%</span>";
-        subtitleEl.innerHTML = "Run: " + escapeHtml(run.label || run.id) + " · " + badge + " · Select a task to view trajectory.";
+        subtitleEl.innerHTML = "Select a task to view trajectory.";
+
+        var simInfoWrap = document.getElementById("sim-info-wrap");
+        if (simInfoWrap) {
+          if (run.sim_info) {
+            simInfoWrap.style.display = "grid";
+            var si = run.sim_info;
+            var extractLlm = function (info) {
+              if (!info) return "Unknown";
+              var llm = info.llm || info.implementation || "Unknown";
+              if (llm.startsWith("gemini/")) llm = llm.substring(7);
+              return llm;
+            };
+            var agent = extractLlm(si.agent_info);
+            var sim = extractLlm(si.user_info);
+            var commit = si.git_commit ? si.git_commit.substring(0, 7) : "N/A";
+            var seed = si.seed != null ? si.seed : "N/A";
+
+            var policyKey = "policy_" + run.id;
+            var guideKey = "guide_" + run.id;
+            window._dialogTexts = window._dialogTexts || {};
+            window._dialogTexts[policyKey] = si.environment_info?.policy || "";
+            window._dialogTexts[guideKey] = si.user_info?.global_simulation_guidelines || "";
+
+            simInfoWrap.innerHTML =
+              '<div class="sim-info-section">' +
+              '<h3>General</h3>' +
+              '<div class="sim-info-item"><span class="sim-info-label">Domain:</span> <span class="sim-info-val">' + escapeHtml(si.environment_info?.domain_name || run.domain || "N/A") + '</span></div>' +
+              '<div class="sim-info-item"><span class="sim-info-label">Commit:</span> <span class="sim-info-val font-mono">' + escapeHtml(commit) + '</span></div>' +
+              '<div class="sim-info-item"><span class="sim-info-label">Seed:</span> <span class="sim-info-val font-mono">' + escapeHtml(String(seed)) + '</span></div>' +
+              '<div class="sim-info-item"><span class="sim-info-label">Max Steps:</span> <span class="sim-info-val">' + escapeHtml(String(si.max_steps)) + '</span></div>' +
+              '<div class="sim-info-item pt-1">' + badge + '</div>' +
+              '</div>' +
+              '<div class="sim-info-section">' +
+              '<h3>Agent Info</h3>' +
+              '<div class="sim-info-item"><span class="sim-info-label">Impl:</span> <span class="sim-info-val">' + escapeHtml(si.agent_info?.implementation || "N/A") + '</span></div>' +
+              '<div class="sim-info-item"><span class="sim-info-label">LLM:</span> <span class="sim-info-val">' + escapeHtml(agent) + '</span></div>' +
+              '<div class="sim-info-item"><span class="sim-info-label">Args:</span> <span class="sim-info-val">' + escapeHtml(JSON.stringify(si.agent_info?.llm_args || {})) + '</span></div>' +
+              (si.total_agent_cost != null ? '<div class="sim-info-item"><span class="sim-info-label">Cost:</span> <span class="sim-info-val font-mono">$' + escapeHtml(Number(si.total_agent_cost).toFixed(4)) + '</span></div>' : '') +
+              (window._dialogTexts[policyKey] ? '<div class="sim-info-item mt-1"><button class="view-text-btn" data-title="Agent Policy" data-key="' + policyKey + '">View Policy</button></div>' : '') +
+              '</div>' +
+              '<div class="sim-info-section">' +
+              '<h3>User Info</h3>' +
+              '<div class="sim-info-item"><span class="sim-info-label">Impl:</span> <span class="sim-info-val">' + escapeHtml(si.user_info?.implementation || "N/A") + '</span></div>' +
+              '<div class="sim-info-item"><span class="sim-info-label">LLM:</span> <span class="sim-info-val">' + escapeHtml(sim) + '</span></div>' +
+              '<div class="sim-info-item"><span class="sim-info-label">Args:</span> <span class="sim-info-val">' + escapeHtml(JSON.stringify(si.user_info?.llm_args || {})) + '</span></div>' +
+              (si.total_user_cost != null ? '<div class="sim-info-item"><span class="sim-info-label">Cost:</span> <span class="sim-info-val font-mono">$' + escapeHtml(Number(si.total_user_cost).toFixed(4)) + '</span></div>' : '') +
+              (window._dialogTexts[guideKey] ? '<div class="sim-info-item mt-1"><button class="view-text-btn" data-title="User Guidelines" data-key="' + guideKey + '">View Guidelines</button></div>' : '') +
+              '</div>';
+
+            var textBtns = simInfoWrap.querySelectorAll(".view-text-btn");
+            textBtns.forEach(function (btn) {
+              btn.addEventListener("click", function () {
+                var dialog = document.getElementById("info-dialog");
+                var titleEl = document.getElementById("dialog-title");
+                var textEl = document.getElementById("dialog-text");
+                if (dialog && titleEl && textEl) {
+                  titleEl.textContent = btn.getAttribute("data-title");
+                  textEl.textContent = window._dialogTexts[btn.getAttribute("data-key")] || "";
+                  dialog.showModal();
+                }
+              });
+            });
+          } else {
+            simInfoWrap.style.display = "none";
+          }
+        }
       }
       var currentRun = runs.find(function (r) { return r.id === runId; });
       setSubtitle(currentRun || { id: runId, label: runId, num_tasks: 0, num_passed: 0, accuracy: 0 });

@@ -1178,13 +1178,22 @@ class LLMMermaidAgent(LLMAgent):
         messages = state.system_messages + state.messages
 
         self._turn_count += 1
+        if self._turn_count == 1:
+            print(f"--- Processed {self._turn_count} messages -> Starter Inserted ---", file=sys.stderr, flush=True)
+            sys_msg = UserMessage(
+                    content=f"<system_reminder>\n Call tool goto_node(\"node_id\": \"START\") right away to start the session \n</system_reminder>",
+                    requestor="assistant",
+                    role="user",
+                )
+            state.messages.append(sys_msg)
+
         if self._turn_count % 3 == 0:
             print(f"--- Processed {self._turn_count} messages -> Reminder Inserted ---", file=sys.stderr, flush=True)
 
             todos = self._mcp_call_sync("get_todos", {})
 
             sys_msg = UserMessage(
-                    content=f"<system_reminder> GREEDY TRAVERSAL, ALWAYS call goto_node() with valid_next_node for maximum context.\n Update todos if required: {todos} </system_reminder>",
+                    content=f"<system_reminder>\nGREEDY TRAVERSAL, call goto_node() with valid_next_node for maximum context\n</system_reminder>",
                     requestor="assistant",
                     role="user",
                 )
@@ -1331,11 +1340,24 @@ class LLMMermaidSoloAgent2(LLMMermaidAgent):
         messages = state.system_messages + state.messages
 
         self._turn_count += 1
+
+        if self._turn_count == 1:
+            print(f"--- Processed {self._turn_count} messages -> Starter Inserted ---", file=sys.stderr, flush=True)
+            sys_msg = UserMessage(
+                    content=f"<system_reminder>\n Call tool goto_node(\"node_id\": \"START\") right away to start the graph\n</system_reminder>",
+                    requestor="assistant",
+                    role="user",
+                )
+            state.messages.append(sys_msg)
+
+
         if self._turn_count % 3 == 0 and self._mcp_call_sync is not None:
             try:
                 todos = self._mcp_call_sync("get_todos", {})
+                print(f"--- Processed {self._turn_count} messages -> Reminder Inserted ---", file=sys.stderr, flush=True)
+
                 sys_msg = UserMessage(
-                    content=f"<system_reminder> GREEDY TRAVERSAL, ALWAYS call goto_node() with valid_next_node for maximum context.\n Update todos if required: {todos} </system_reminder>",
+                    content=f"<system_reminder>\nGREEDY TRAVERSAL, call goto_node() with valid_next_node for maximum context\n</system_reminder>",
                     requestor="assistant",
                     role="user",
                 )
@@ -1376,7 +1398,7 @@ class LLMMermaidSoloAgent2(LLMMermaidAgent):
                 if trajectory_sink is not None:
                     trajectory_sink(tool_msg)
                 sys_msg = UserMessage(
-                    content=f"<system_message> \n{result} \n</system_message>",
+                    content=f"<system_message> \n{result}\n</system_message>",
                     requestor="assistant",
                     role="user",
                 )

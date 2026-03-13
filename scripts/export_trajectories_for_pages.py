@@ -44,8 +44,14 @@ def export_one(sim_path: Path, out_dir: Path) -> dict:
         data = json.load(f)
 
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    info = data["info"] or {}
+
     tasks_by_id = {t["id"]: t for t in data["tasks"]}
     index = []
+    
+    total_agent_cost = 0.0
+    total_user_cost = 0.0
 
     for sim in data["simulations"]:
         task_id = sim["task_id"]
@@ -73,13 +79,14 @@ def export_one(sim_path: Path, out_dir: Path) -> dict:
             "messages": sim.get("messages") or [],
         }
 
-        safe_id = sanitize_filename(task_id)
+        safe_id = sanitize_filename(sim.get("id", task_id))
         out_file = out_dir / f"task_{safe_id}.json"
         with open(out_file, "w") as f:
             json.dump(payload, f, indent=2)
 
         index.append({
             "task_id": task_id,
+            "sim_id": sim.get("id", task_id),
             "reward": reward,
             "reward_breakdown": reward_breakdown,
             "db_match": db_check.get("db_match"),
@@ -88,6 +95,9 @@ def export_one(sim_path: Path, out_dir: Path) -> dict:
             "termination_reason": sim.get("termination_reason"),
             "num_messages": len(sim.get("messages") or []),
         })
+
+        total_agent_cost += float(sim.get("agent_cost") or 0.0)
+        total_user_cost += float(sim.get("user_cost") or 0.0)
 
     index.sort(key=lambda x: int(x["task_id"]) if str(x["task_id"]).isdigit() else x["task_id"])
     num_passed = sum(1 for t in index if t.get("reward") == 1.0)
@@ -111,12 +121,16 @@ def export_one(sim_path: Path, out_dir: Path) -> dict:
     with open(out_dir / "index.json", "w") as f:
         json.dump({"tasks": index, "run_timestamp": data.get("timestamp")}, f, indent=2)
 
+    info["total_agent_cost"] = round(total_agent_cost, 4)
+    info["total_user_cost"] = round(total_user_cost, 4)
+
     return {
         "domain": domain,
         "num_tasks": num_tasks,
         "num_passed": num_passed,
         "accuracy": accuracy,
         "run_timestamp": data.get("timestamp"),
+        "sim_info": info,
     }
 
 
@@ -192,6 +206,7 @@ def main():
                 "num_tasks": info["num_tasks"],
                 "num_passed": info.get("num_passed", 0),
                 "accuracy": info.get("accuracy", 0),
+                "sim_info": info.get("sim_info")
             }
             runs.append(run_entry)
             if args.add:

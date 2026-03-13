@@ -1,7 +1,8 @@
 from tau2.utils.utils import DATA_DIR
 
 RETAIL_DATA_DIR = DATA_DIR / "tau2" / "domains" / "retail"
-RETAIL_DB_PATH = RETAIL_DATA_DIR / "db.json"
+#RETAIL_DB_PATH = RETAIL_DATA_DIR / "db.json"
+RETAIL_DB_PATH = RETAIL_DATA_DIR / "db_perturb.json"
 RETAIL_POLICY_PATH = RETAIL_DATA_DIR / "policy.md"
 RETAIL_POLICY_SOLO_PATH = RETAIL_DATA_DIR / "policy_solo.md"
 RETAIL_POLICY_CANCEL_PATH = RETAIL_DATA_DIR / "policy_cancel.md"
@@ -11,3 +12,5 @@ RETAIL_POLICY_EXCHANGE_PATH = RETAIL_DATA_DIR / "policy_exchange.md"
 RETAIL_TASK_SET_PATH = RETAIL_DATA_DIR / "tasks.json"
 RETAIL_TASK_SET_SOLO_PATH = RETAIL_DATA_DIR / "tasks_solo.json"
 RETAIL_TASK_SET_SOLO_COMMS_PATH = RETAIL_DATA_DIR / "tasks_solo_comms.json"
+RETAIL_TASK_SET_PERTURB = RETAIL_DATA_DIR / "tasks_perturb.json"
+

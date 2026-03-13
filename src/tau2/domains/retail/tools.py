@@ -203,21 +203,8 @@ class RetailTools(ToolKitBase):  # Tools
         return str(round(float(eval(expression, {"__builtins__": None}, {})), 2))
 
     @is_tool(ToolType.WRITE)
-    def cancel_pending_order(self, order_id: str, reason: str) -> Order:
-        """Cancel a pending order. If the order is already processed or delivered,
-        it cannot be cancelled. The agent needs to explain the cancellation detail
-        and ask for explicit user confirmation (yes/no) to proceed. If the user confirms,
-        the order status will be changed to 'cancelled' and the payment will be refunded.
-        The refund will be added to the user's gift card balance immediately if the payment
-        was made using a gift card, otherwise the refund would take 5-7 business days to process.
-        The function returns the order details after the cancellation.
-
-        Args:
-            order_id: The order id, such as '#W0000000'. Be careful there is a '#' symbol at the beginning of the order id.
-            reason: The reason for cancellation, which should be either 'no longer needed' or 'ordered by mistake'.
-
-        Returns:
-            Order: The order details after the cancellation.
+    def cancel_order(self, order_id: str, reason: str) -> Order:
+        """Cancel a pending order. 
         """
         # check order exists and is pending
         order = self._get_order(order_id)
@@ -260,27 +247,6 @@ class RetailTools(ToolKitBase):  # Tools
         payment_method_id: str,
     ) -> Order:
         """Exchange items in a delivered order to new items of the same product type.
-        For a delivered order, return or exchange can be only done once by the agent.
-        The agent needs to explain the exchange detail and ask for explicit user confirmation (yes/no) to proceed.
-
-        Args:
-            order_id: The order id, such as '#W0000000'. Be careful there is a '#' symbol at the beginning of the order id.
-            item_ids: The item ids to be exchanged, each such as '1008292230'. There could be duplicate items in the list.
-            new_item_ids: The item ids to be exchanged for, each such as '1008292230'.
-                         There could be duplicate items in the list. Each new item id should match the item id
-                         in the same position and be of the same product.
-            payment_method_id: The payment method id to pay or receive refund for the item price difference,
-                             such as 'gift_card_0000000' or 'credit_card_0000000'. These can be looked up
-                             from the user or order details.
-
-        Returns:
-            Order: The order details after the exchange.
-
-        Raises:
-            ValueError: If the order is not delivered.
-            ValueError: If the items to be exchanged do not exist.
-            ValueError: If the new items do not exist or do not match the old items.
-            ValueError: If the number of items to be exchanged does not match.
         """
         # check order exists and is delivered
         order = self._get_order(order_id)
@@ -334,20 +300,7 @@ class RetailTools(ToolKitBase):  # Tools
     def find_user_id_by_name_zip(
         self, first_name: str, last_name: str, zip: str
     ) -> str:
-        """Find user id by first name, last name, and zip code. If the user is not found, the function
-        will return an error message. By default, find user id by email, and only call this function
-        if the user is not found by email or cannot remember email.
-
-        Args:
-            first_name: The first name of the customer, such as 'John'.
-            last_name: The last name of the customer, such as 'Doe'.
-            zip: The zip code of the customer, such as '12345'.
-
-        Returns:
-            str: The user id if found, otherwise an error message.
-
-        Raises:
-            ValueError: If the user is not found.
+        """Find user id by first name, last name, and zip code.
         """
         for user_id, user in self.db.users.items():
             if (
@@ -360,16 +313,7 @@ class RetailTools(ToolKitBase):  # Tools
 
     @is_tool(ToolType.READ)
     def find_user_id_by_email(self, email: str) -> str:
-        """Find user id by email. If the user is not found, the function will return an error message.
-
-        Args:
-            email: The email of the user, such as 'something@example.com'.
-
-        Returns:
-            str: The user id if found, otherwise an error message.
-
-        Raises:
-            ValueError: If the user is not found.
+        """Find user id by email.
         """
         for user_id, user in self.db.users.items():
             if user.email.lower() == email.lower():
@@ -377,66 +321,37 @@ class RetailTools(ToolKitBase):  # Tools
         raise ValueError("User not found")
 
     @is_tool(ToolType.READ)
-    def get_order_details(self, order_id: str) -> Order:
+    def get_order(self, order_id: str) -> Order:
         """Get the status and details of an order.
-
-        Args:
-            order_id: The order id, such as '#W0000000'. Be careful there is a '#' symbol at the beginning of the order id.
-
-        Returns:
-            Order: The order details.
-
-        Raises:
-            ValueError: If the order is not found.
         """
         order = self._get_order(order_id)
         return order
 
     @is_tool(ToolType.READ)
-    def get_product_details(self, product_id: str) -> Product:
-        """Get the inventory details of a product.
-
-        Args:
-            product_id: The product id, such as '6086499569'. Be careful the product id is different from the item id.
-
-        Returns:
-            Product: The product details.
-
-        Raises:
-            ValueError: If the product is not found.
+    def get_product_info(self, product_id: str) -> Product:
+        """Get details of a product inventory
         """
         product = self._get_product(product_id)
         return product
 
     @is_tool(ToolType.READ)
-    def get_user_details(self, user_id: str) -> User:
+    def get_user(self, user_id: str) -> User:
         """Get the details of a user, including their orders.
-
-        Args:
-            user_id: The user id, such as 'sara_doe_496'.
-
-        Returns:
-            User: The user details.
-
-        Raises:
-            ValueError: If the user is not found.
         """
         user = self._get_user(user_id)
         return user
 
     @is_tool(ToolType.READ)
-    def list_all_product_types(self) -> str:
+    def get_all_product_types(self) -> str:
         """List the name and product id of all product types.
-        Each product type has a variety of different items with unique item ids and options.
-        There are only 50 product types in the store.
 
         Returns:
-            str: A JSON string mapping product names to their product IDs, sorted alphabetically by name.
+            str: A JSON string mapping product names to their product IDs.
         """
         product_dict = {
             product.name: product.product_id for product in self.db.products.values()
         }
-        return json.dumps(product_dict, sort_keys=True)
+        return json.dumps(product_dict)
 
     @is_tool(ToolType.WRITE)
     def modify_pending_order_address(
@@ -449,22 +364,7 @@ class RetailTools(ToolKitBase):  # Tools
         country: str,
         zip: str,
     ) -> Order:
-        """Modify the shipping address of a pending order. The agent needs to explain the modification detail and ask for explicit user confirmation (yes/no) to proceed.
-
-        Args:
-            order_id: The order id, such as '#W0000000'. Be careful there is a '#' symbol at the beginning of the order id.
-            address1: The first line of the address, such as '123 Main St'.
-            address2: The second line of the address, such as 'Apt 1' or ''.
-            city: The city, such as 'San Francisco'.
-            state: The state, such as 'CA'.
-            country: The country, such as 'USA'.
-            zip: The zip code, such as '12345'.
-
-        Returns:
-            Order: The order details after the modification.
-
-        Raises:
-            ValueError: If the order is not pending.
+        """Modify the shipping address of a pending order.
         """
         # Check if the order exists and is pending
         order = self._get_order(order_id)
@@ -490,22 +390,7 @@ class RetailTools(ToolKitBase):  # Tools
         new_item_ids: List[str],
         payment_method_id: str,
     ) -> Order:
-        """Modify items in a pending order to new items of the same product type. For a pending order, this function can only be called once. The agent needs to explain the exchange detail and ask for explicit user confirmation (yes/no) to proceed.
-
-        Args:
-            order_id: The order id, such as '#W0000000'. Be careful there is a '#' symbol at the beginning of the order id.
-            item_ids: The item ids to be modified, each such as '1008292230'. There could be duplicate items in the list.
-            new_item_ids: The item ids to be modified for, each such as '1008292230'. There could be duplicate items in the list. Each new item id should match the item id in the same position and be of the same product.
-            payment_method_id: The payment method id to pay or receive refund for the item price difference, such as 'gift_card_0000000' or 'credit_card_0000000'. These can be looked up from the user or order details.
-
-        Returns:
-            Order: The order details after the modification.
-
-        Raises:
-            ValueError: If the order is not pending.
-            ValueError: If the items to be modified do not exist.
-            ValueError: If the new items do not exist or do not match the old items.
-            ValueError: If the number of items to be modified does not match.
+        """Modify items in a pending order to new items of the same product type. 
         """
 
         # Check if the order exists and is pending
@@ -578,20 +463,7 @@ class RetailTools(ToolKitBase):  # Tools
         order_id: str,
         payment_method_id: str,
     ) -> Order:
-        """Modify the payment method of a pending order. The agent needs to explain the modification detail and ask for explicit user confirmation (yes/no) to proceed.
-
-        Args:
-            order_id: The order id, such as '#W0000000'. Be careful there is a '#' symbol at the beginning of the order id.
-            payment_method_id: The payment method id to pay or receive refund for the item price difference, such as 'gift_card_0000000' or 'credit_card_0000000'. These can be looked up from the user or order details.
-
-        Returns:
-            Order: The order details after the modification.
-
-        Raises:
-            ValueError: If the order is not pending.
-            ValueError: If the payment method does not exist.
-            ValueError: If the payment history has more than one payment.
-            ValueError: If the new payment method is the same as the current one.
+        """Modify the payment method of a pending order.
         """
         order = self._get_order(order_id)
 
@@ -663,22 +535,7 @@ class RetailTools(ToolKitBase):  # Tools
         country: str,
         zip: str,
     ) -> User:
-        """Modify the default address of a user. The agent needs to explain the modification detail and ask for explicit user confirmation (yes/no) to proceed.
-
-        Args:
-            user_id: The user id, such as 'sara_doe_496'.
-            address1: The first line of the address, such as '123 Main St'.
-            address2: The second line of the address, such as 'Apt 1' or ''.
-            city: The city, such as 'San Francisco'.
-            state: The state, such as 'CA'.
-            country: The country, such as 'USA'.
-            zip: The zip code, such as '12345'.
-
-        Returns:
-            User: The user details after the modification.
-
-        Raises:
-            ValueError: If the user is not found.
+        """Modify the default address of a user.
         """
         user = self._get_user(user_id)
         user.address = UserAddress(
@@ -699,23 +556,6 @@ class RetailTools(ToolKitBase):  # Tools
         payment_method_id: str,
     ) -> Order:
         """Return some items of a delivered order.
-        The order status will be changed to 'return requested'.
-        The agent needs to explain the return detail and ask for explicit user confirmation (yes/no) to proceed.
-        The user will receive follow-up email for how and where to return the item.
-
-        Args:
-            order_id: The order id, such as '#W0000000'. Be careful there is a '#' symbol at the beginning of the order id.
-            item_ids: The item ids to be returned, each such as '1008292230'. There could be duplicate items in the list.
-            payment_method_id: The payment method id to pay or receive refund for the item price difference, such as 'gift_card_0000000' or 'credit_card_0000000'.
-                             These can be looked up from the user or order details.
-
-        Returns:
-            Order: The order details after requesting the return.
-
-        Raises:
-            ValueError: If the order is not delivered.
-            ValueError: If the payment method is not the original payment method or a gift card.
-            ValueError: If the items to be returned do not exist.
         """
         order = self._get_order(order_id)
         if order.status != "delivered":
@@ -777,16 +617,7 @@ class RetailTools(ToolKitBase):  # Tools
     @is_tool(ToolType.GENERIC)
     def transfer_to_human_agents(self, summary: str) -> str:
         """
-        Transfer the user to a human agent, with a summary of the user's issue.
-        Only transfer if
-         -  the user explicitly asks for a human agent
-         -  given the policy and the available tools, you cannot solve the user's issue.
-
-        Args:
-            summary: A summary of the user's issue.
-
-        Returns:
-            A message indicating the user has been transferred to a human agent.
+        Transfer the user to a human agent, with a summary of the user's issue
         """
         return "Transfer successful"
 

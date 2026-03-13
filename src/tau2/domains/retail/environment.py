@@ -14,6 +14,7 @@ from tau2.domains.retail.utils import (
     RETAIL_TASK_SET_PATH,
     RETAIL_TASK_SET_SOLO_PATH,
     RETAIL_TASK_SET_SOLO_COMMS_PATH,
+    RETAIL_TASK_SET_PERTURB,
 )
 from tau2.environment.environment import Environment
 from tau2.utils import load_file
@@ -92,3 +93,24 @@ def get_tasks_retail_solo_comms(task_split_name: Optional[str] = "base") -> list
         )
     tasks = [task for task in tasks if task.id in task_splits[task_split_name]]
     return tasks
+
+def get_tasks_retail_solo_perturb(task_split_name: Optional[str] = "base") -> list[Task]:
+    """Load solo-comms tasks (ticket includes communication requirements; communicate_info in eval). Uses same splits as retail."""
+    tasks = load_file(RETAIL_TASK_SET_PERTURB)
+    tasks = [Task.model_validate(task) for task in tasks]
+    if task_split_name is None:
+        return tasks
+    task_splits = get_perturb_tasks_split()
+    if task_split_name not in task_splits:
+        raise ValueError(
+            f"Invalid task split name: {task_split_name}. Valid splits are: {task_splits.keys()}"
+        )
+    tasks = [task for task in tasks if task.id in task_splits[task_split_name]]
+    return tasks
+
+def get_perturb_tasks_split() -> dict[str, list[str]]:
+    split_file = (
+        Path(RETAIL_TASK_SET_PATH).parent
+        / f"split_tasks_perturb.json"
+    )
+    return load_file(split_file)

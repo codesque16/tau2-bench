@@ -460,7 +460,7 @@ Leave empty to use the default LLM.
 
     agent_llm = Prompt.ask(
         "\n[bold blue]Enter Agent LLM name[/bold blue] (or press Enter for default)",
-        default="",
+        default="gemini/gemini-3-flash-preview",
     )
 
     return agent_llm if agent_llm.strip() else None

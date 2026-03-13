@@ -214,7 +214,8 @@
   }
 
   var taskId = qs("task");
-  if (!taskId) {
+  var simId = qs("sim") || taskId;
+  if (!taskId && !simId) {
     document.getElementById("loading").style.display = "none";
     document.getElementById("error").style.display = "block";
     document.getElementById("error").textContent = "Missing task id. Use ?task=1";
@@ -222,7 +223,7 @@
   }
 
   var runId = qs("run");
-  var safeId = taskId.replace(/[^\w\-]/g, "_");
+  var safeId = (simId || taskId).replace(/[^\w\-]/g, "_");
   var url = runId
     ? getDataPath("data/" + runId + "/task_" + safeId + ".json")
     : getDataPath("data/task_" + safeId + ".json");
@@ -240,7 +241,8 @@
       document.getElementById("error").style.display = "none";
       document.getElementById("content").style.display = "block";
 
-      document.getElementById("viewer-title").textContent = "Task " + taskId + (runId ? " · " + runId : "");
+      var displayId = data.task_id || taskId || simId;
+      document.getElementById("viewer-title").textContent = "Task " + displayId + (runId ? " · " + runId : "");
 
       document.getElementById("task-details").innerHTML = renderTaskDetails(data.task);
       document.getElementById("run-info").innerHTML = renderRunInfo(data.run_info);

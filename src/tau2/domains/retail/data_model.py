@@ -26,11 +26,11 @@ class Product(BaseModel):
         description="Dictionary of variants indexed by variant ID"
     )
 
-    # @computed_field
-    # @property
-    # def available_variants(self) -> int:
-    #     """The count of available variants for this product"""
-    #     return sum(1 for v in self.variants.values() if v.available)
+    @computed_field
+    @property
+    def available_variants(self) -> int:
+        """The count of available variants for this product"""
+        return sum(1 for v in self.variants.values() if v.available)
 
 
 class UserName(BaseModel):
@@ -80,11 +80,14 @@ class GiftCard(PaymentMethodBase):
 
 PaymentMethod = Union[CreditCard, GiftCard, Paypal]
 
+MembershipType = Literal["base", "silver", "gold"]
+
 
 class User(BaseModel):
     """Represents a user with their personal information, payment methods and order history"""
 
     user_id: str = Field(description="Unique identifier for the user")
+    membership_type: MembershipType = Optional[Field(description="Membership status")]
     name: UserName = Field(description="User's full name")
     address: UserAddress = Field(description="User's primary address")
     email: str = Field(description="User's email address")
