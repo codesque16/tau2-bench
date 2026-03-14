@@ -27,7 +27,9 @@ def get_environment(
         db = RetailDB.load(RETAIL_DB_PATH)
     tools = RetailTools(db)
     if solo_mode:
-        with open(RETAIL_POLICY_SOLO_PATH, "r") as fp:
+        # GEPA: use override path when optimizing policy (candidate written to temp file)
+        policy_path = os.environ.get("TAU2_POLICY_SOLO_OVERRIDE") or RETAIL_POLICY_SOLO_PATH
+        with open(policy_path, "r") as fp:
             policy = fp.read()
     else:
         with open(RETAIL_POLICY_PATH, "r") as fp:

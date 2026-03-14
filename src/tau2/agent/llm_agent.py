@@ -802,11 +802,17 @@ class LLMSoloAgent2(LocalAgent[LLMAgentState]):
 
     @property
     def system_prompt(self) -> str:
-        return SYSTEM_PROMPT_SOLO2.format(
+        import os
+
+        base = SYSTEM_PROMPT_SOLO2.format(
             agent_instruction=AGENT_SOLO2_INSTRUCTION,
             domain_policy=self.domain_policy,
             ticket=self.task.ticket,
         )
+        extra = os.environ.get("TAU2_AGENT_EXTRA_INSTRUCTIONS", "").strip()
+        if extra:
+            base += "\n\n## Additional Instructions (GEPA-optimized)\n\n" + extra
+        return base
 
     @classmethod
     def is_stop(cls, message: AssistantMessage) -> bool:

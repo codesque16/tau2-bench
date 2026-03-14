@@ -365,10 +365,10 @@ def run_tasks(
     random.seed(seed)
 
     seeds = [random.randint(0, 1000000) for _ in range(num_trials)]
-    if "seed" in llm_args_agent:
+    if llm_args_agent is not None and "seed" in llm_args_agent:
         logger.warning("Each trial will modify the seed for the agent")
 
-    if "seed" in llm_args_user:
+    if llm_args_user is not None and "seed" in llm_args_user:
         logger.warning("Each trial will modify the seed for the user")
 
     lock = multiprocessing.Lock()

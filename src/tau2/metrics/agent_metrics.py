@@ -53,7 +53,7 @@ def get_metrics_df(results: Results) -> tuple[pd.DataFrame, int]:
     Returns the maximum number of trials that can be used for pass^k metrics.
     """
     df = results.to_df()
-    df["success"] = df.reward.apply(is_successful)
+    df.loc[:, "success"] = df.reward.apply(is_successful)
     if len(df.info_num_trials.unique()) > 1:
         logger.warning(
             f"All simulations must have the same number of trials. Found {df.info_num_trials.unique()}"
