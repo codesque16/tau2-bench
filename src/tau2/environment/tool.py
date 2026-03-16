@@ -143,7 +143,7 @@ class Tool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.name,
-                "description": self._get_description(),
+                "description": "", #self._get_description(),
                 "parameters": self.params.model_json_schema(),
             },
         }

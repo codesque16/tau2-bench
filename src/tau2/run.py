@@ -10,7 +10,16 @@ import logfire
 from loguru import logger
 from rich.console import Console
 
-from tau2.agent.llm_agent import LLMAgent, LLMGTAgent, LLMMermaidAgent, LLMMermaidSoloAgent2, LLMSoloAgent, LLMSoloAgent2
+from tau2.agent.llm_agent import (
+    LLMBashSoloAgent2,
+    LLMAgent,
+    LLMGTAgent,
+    LLMMermaidAgent,
+    LLMMermaidSoloAgent2,
+    LLMReActSoloAgent2,
+    LLMSoloAgent,
+    LLMSoloAgent2,
+)
 from tau2.data_model.simulation import (
     AgentInfo,
     Info,
@@ -745,8 +754,16 @@ def run_task(
             )
         environment: Environment = environment_constructor(solo_mode=True)
         user_tools = environment.get_user_tools() if environment.user_tools else []
+        tools_list = environment.get_tools() + user_tools
+        # Solo agent 2: no bash (bash agent only); all_todo_done commented out for now.
+        if AgentConstructor is LLMSoloAgent2:
+            tools_list = [t for t in tools_list if t.name not in ("bash", "all_todo_done")]
+        elif AgentConstructor is LLMBashSoloAgent2:
+            tools_list = [t for t in tools_list if t.name != "all_todo_done"]
+        elif AgentConstructor is LLMReActSoloAgent2:
+            tools_list = [t for t in tools_list if t.name != "bash"]
         agent = AgentConstructor(
-            tools=environment.get_tools() + user_tools,
+            tools=tools_list,
             domain_policy=environment.get_policy(),
             llm=llm_agent,
             llm_args=llm_args_agent,
