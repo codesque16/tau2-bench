@@ -5,8 +5,8 @@ Exposes evaluate_for_gepa() for use with gepa.optimize_anything in generalizatio
 Supports policy_override (full policy) or agent_extra_instructions.
 """
 
+import hashlib
 import json
-import os
 import tempfile
 import uuid
 from pathlib import Path
@@ -203,19 +203,7 @@ def evaluate_for_gepa(
     with tempfile.TemporaryDirectory() as tmpdir:
         save_to = Path(tmpdir) / f"{run_id}.json"
 
-        prev_policy_override = os.environ.get("TAU2_POLICY_SOLO_OVERRIDE")
-        prev_extra = os.environ.get("TAU2_AGENT_EXTRA_INSTRUCTIONS")
-
         try:
-            if policy_override is not None:
-                policy_path = Path(tmpdir) / "policy_solo_override.md"
-                policy_path.write_text(policy_override, encoding="utf-8")
-                os.environ["TAU2_POLICY_SOLO_OVERRIDE"] = str(policy_path)
-                os.environ.pop("TAU2_AGENT_EXTRA_INSTRUCTIONS", None)
-            else:
-                os.environ["TAU2_AGENT_EXTRA_INSTRUCTIONS"] = agent_extra_instructions or ""
-                os.environ.pop("TAU2_POLICY_SOLO_OVERRIDE", None)
-
             # Build descriptive span name: always include task_id(s) when available
             if len(task_ids) == 1:
                 task_str = f" task_id:{task_ids[0]}"
@@ -229,6 +217,11 @@ def evaluate_for_gepa(
                 "domain": domain,
                 "task_set_name": task_set_name,
             }
+            # Attach a stable hash of the policy being used so Logfire can distinguish runs.
+            if policy_override is not None:
+                policy_hash = hashlib.sha256(policy_override.encode("utf-8")).hexdigest()[:12]
+                span_attrs["policy_override_sha256_12"] = policy_hash
+                span_name = f"{span_name} policy={policy_hash}"
             if gepa_context:
                 span_attrs["iteration"] = gepa_context.get("iteration")
                 span_attrs["split"] = gepa_context.get("split")
@@ -260,6 +253,7 @@ def evaluate_for_gepa(
                     seed=seed,
                     log_level=log_level,
                     solo_eval_db_only=False,
+                    policy_override=policy_override,
                 )
                 # Run diagnostic LLM inside gepa_eval span so completion spans nest
                 df = results.to_df()
@@ -276,14 +270,7 @@ def evaluate_for_gepa(
                         diagnosis_lm=diagnosis_lm,
                     )
         finally:
-            if prev_policy_override is not None:
-                os.environ["TAU2_POLICY_SOLO_OVERRIDE"] = prev_policy_override
-            else:
-                os.environ.pop("TAU2_POLICY_SOLO_OVERRIDE", None)
-            if prev_extra is not None:
-                os.environ["TAU2_AGENT_EXTRA_INSTRUCTIONS"] = prev_extra
-            else:
-                os.environ.pop("TAU2_AGENT_EXTRA_INSTRUCTIONS", None)
+            pass
 
     metrics = compute_metrics(results)
 

@@ -22,14 +22,15 @@ from tau2.utils import load_file
 def get_environment(
     db: Optional[RetailDB] = None,
     solo_mode: bool = False,
+    policy_override: Optional[str] = None,
 ) -> Environment:
     if db is None:
         db = RetailDB.load(RETAIL_DB_PATH)
     tools = RetailTools(db)
-    if solo_mode:
-        # GEPA: use override path when optimizing policy (candidate written to temp file)
-        policy_path = os.environ.get("TAU2_POLICY_SOLO_OVERRIDE") or RETAIL_POLICY_SOLO_PATH
-        with open(policy_path, "r") as fp:
+    if solo_mode and policy_override is not None:
+        policy = policy_override
+    elif solo_mode:
+        with open(RETAIL_POLICY_SOLO_PATH, "r") as fp:
             policy = fp.read()
     else:
         with open(RETAIL_POLICY_PATH, "r") as fp:

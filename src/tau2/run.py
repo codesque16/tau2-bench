@@ -299,6 +299,7 @@ def run_tasks(
     mcp_server_url: Optional[str] = None,
     mcp_sop_file: Optional[str] = None,
     solo_eval_db_only: bool = False,
+    policy_override: Optional[str] = None,
 ) -> Results:
     """
     Runs tasks for a given domain.
@@ -525,6 +526,7 @@ def run_tasks(
                         mcp_server_url=mcp_server_url,
                         mcp_sop_file=mcp_sop_file,
                         solo_eval_db_only=solo_eval_db_only,
+                        policy_override=policy_override,
                     )
                 # Nested span: evaluation (what passed/failed, reward, reasons)
                 _log_evaluation_span(simulation)
@@ -611,6 +613,7 @@ def run_task(
     mcp_server_url: Optional[str] = None,
     mcp_sop_file: Optional[str] = None,
     solo_eval_db_only: bool = False,
+    policy_override: Optional[str] = None,
 ) -> SimulationRun:
     """
     Runs tasks for a given domain.
@@ -667,7 +670,10 @@ def run_task(
                 messages=[],
                 error="Task not valid for mermaid solo agent (solo_convertible=false or no expected actions).",
             )
-        environment: Environment = environment_constructor(solo_mode=True)
+        if domain == "retail":
+            environment = environment_constructor(solo_mode=True, policy_override=policy_override)
+        else:
+            environment = environment_constructor(solo_mode=True)
         user_tools = environment.get_user_tools() if environment.user_tools else []
         agent = AgentConstructor(
             tools=environment.get_tools() + user_tools,
@@ -723,7 +729,10 @@ def run_task(
                 messages=[],
                 error="Task not valid for solo agent (solo_convertible=false or no expected actions).",
             )
-        environment: Environment = environment_constructor(solo_mode=True)
+        if domain == "retail":
+            environment = environment_constructor(solo_mode=True, policy_override=policy_override)
+        else:
+            environment = environment_constructor(solo_mode=True)
         user_tools = environment.get_user_tools() if environment.user_tools else []
         agent = AgentConstructor(
             tools=environment.get_tools() + user_tools,
@@ -752,7 +761,10 @@ def run_task(
                 messages=[],
                 error="Task not valid for solo2 agent (solo_convertible=false or no expected actions).",
             )
-        environment: Environment = environment_constructor(solo_mode=True)
+        if domain == "retail":
+            environment = environment_constructor(solo_mode=True, policy_override=policy_override)
+        else:
+            environment = environment_constructor(solo_mode=True)
         user_tools = environment.get_user_tools() if environment.user_tools else []
         tools_list = environment.get_tools() + user_tools
         # Solo agent 2: no bash (bash agent only); all_todo_done commented out for now.
