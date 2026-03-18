@@ -146,15 +146,18 @@ def _format_conversation_dialogue(messages: list) -> str:
                     tool_id = getattr(tc, "id", None) or getattr(tc, "tool_id", None) or "unknown"
                     args = getattr(tc, "arguments", None)
                     out.append(f"  (ToolCall : {tool_id}) {name} {_inline_json(args)}")
+            # Only show assistant free-form text when it exists; for pure
+            # tool-call turns, skip the "(no assistant text)" filler.
             if content:
                 out.extend([f"  {line}" for line in content.splitlines()])
-            else:
-                out.append("  (no assistant text)")
+            # else:
+            #     out.append("  (no assistant text)")
 
         elif role == "tool":
-            name = getattr(msg, "name", "tool")
             tool_id = getattr(msg, "tool_id", None) or getattr(msg, "id", None) or "unknown"
-            out.append(f"  (Tool output: {tool_id}) {name}")
+            # Drop the redundant tool name label; the tool id is enough and
+            # the content that follows shows the full payload.
+            out.append(f"  (Tool output: {tool_id})")
             if content:
                 out.extend([f"    {line}" for line in content.splitlines()])
             else:
@@ -260,9 +263,10 @@ Be concise. Focus on actionable policy changes."""
                 temperature=0.3,
             )
             text = resp.choices[0].message.content or ""
-            diagnoses.append(f"### Task {tid}\n{text}")
+            # Omit task id in output; multiple failures are still separated by blank lines.
+            diagnoses.append(text.strip())
         except Exception as e:
-            diagnoses.append(f"### Task {tid}\n(Diagnosis error: {e})")
+            diagnoses.append(f"(Diagnosis error: {e})")
 
     return "\n\n".join(diagnoses) if diagnoses else ""
 
