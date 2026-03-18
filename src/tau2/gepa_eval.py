@@ -91,8 +91,11 @@ def _get_retail_available_tools_list() -> str:
         return "(Retail tools schema unavailable: domain not loaded)"
     lines = ["Tool list available to the agent:"]
     tool_names: list[str] = []
+    excluded = {"bash", "all_todo_done"}
     for name in dir(RetailTools):
         if name.startswith("_"):
+            continue
+        if name in excluded:
             continue
         try:
             method = getattr(RetailTools, name)
@@ -463,6 +466,7 @@ def evaluate_for_gepa(
         # Conversation as readable dialogue (User / Assistant / Tool).
         conversation_text = _format_conversation_dialogue(messages)
         reward_info_text = _format_reward_info(sim)
+
 
         per_task_traces[tid] = {
             "task_description": ticket_text,
