@@ -21,34 +21,6 @@ from tau2.metrics.agent_metrics import compute_metrics
 from tau2.run import get_tasks, run_tasks
 
 
-def _format_message_for_llm(msg) -> str:
-    """Format a single message for LLM consumption (full content plus tool calls)."""
-    role = getattr(msg, "role", "unknown")
-    content = getattr(msg, "content", None) or ""
-    parts = [f"[{role}]"]
-    if content and content.strip():
-        # Do not truncate content; include full text for diagnosis.
-        parts.append(content)
-    if hasattr(msg, "tool_calls") and msg.tool_calls:
-        for tc in msg.tool_calls:
-            parts.append(f"  ToolCall: {tc.name}({json.dumps(tc.arguments)[:200]}...)")
-    return " ".join(parts)
-
-
-def _format_trace(messages: list, max_messages: int | None = None) -> str:
-    """Format conversation trace for diagnosis.
-
-    When max_messages is None, include the full trace without truncation.
-    """
-    lines = []
-    iterable = messages if max_messages is None else messages[:max_messages]
-    for i, msg in enumerate(iterable):
-        lines.append(f"{i+1}. {_format_message_for_llm(msg)}")
-    if max_messages is not None and len(messages) > max_messages:
-        lines.append(f"... ({len(messages) - max_messages} more messages)")
-    return "\n".join(lines)
-
-
 def _serialize_message(msg: Any) -> dict[str, Any]:
     """Serialize a simulation message into a JSON-friendly dict."""
     data: dict[str, Any] = {
@@ -108,20 +80,22 @@ def _get_retail_available_tools_list() -> str:
     return "\n".join(lines).strip()
 
 
-def _format_conversation_dialogue(messages: list) -> str:
-    """Format conversation for the optimizer prompt.
+def _format_conversation_dialogue(
+    messages: list,
+    max_messages: int | None = None,
+) -> str:
+    """Format conversation for the optimizer prompt and qualitative diagnosis traces.
 
     Target format (easy to skim):
     [User]:
       ...
     [Assistant]:
-      (ToolCall) tool_name {...}
-      (ToolCall) tool_name {...}
+      (ToolCall : id) tool_name {...}
       assistant text...
     [Tool]:
-      tool_name -> tool response...
+      (Tool output: id)
+        ...
     """
-
     def _inline_json(obj: object | None) -> str:
         try:
             return json.dumps(obj or {}, ensure_ascii=False, sort_keys=True)
@@ -129,7 +103,8 @@ def _format_conversation_dialogue(messages: list) -> str:
             return str(obj or {})
 
     out: list[str] = []
-    for msg in messages:
+    iterable = messages if max_messages is None else messages[:max_messages]
+    for msg in iterable:
         role = getattr(msg, "role", "unknown")
         content_raw = getattr(msg, "content", None) or ""
         content = str(content_raw).strip()
@@ -169,7 +144,16 @@ def _format_conversation_dialogue(messages: list) -> str:
 
         out.append("")
 
+    if max_messages is not None and len(messages) > max_messages:
+        out.append(f"... ({len(messages) - max_messages} more messages)")
+        out.append("")
+
     return "\n".join(out).strip()
+
+
+def _format_trace(messages: list, max_messages: int | None = None) -> str:
+    """Same as ``_format_conversation_dialogue`` (block [User]/[Assistant]/[Tool] layout)."""
+    return _format_conversation_dialogue(messages, max_messages=max_messages)
 
 
 def _format_reward_info(sim: SimulationRun) -> str:
