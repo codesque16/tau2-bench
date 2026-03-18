@@ -206,20 +206,26 @@ def _get_qualitative_asi(
         # Use full, untruncated trace for qualitative diagnosis.
         trace = _format_trace(sim.messages, max_messages=None)
         reward_info = _format_reward_info(sim)
+        tools_list = _get_retail_available_tools_list()
 
         prompt = f"""You are analyzing a failed retail customer-service task . You're task is to diagnose the problem and suggest a policy improvement. The assistant is expected to complete the given task by making all the required tool calls first, and only when all actions are complete, send a single final reply message to the user.
 1) The task details are provided below envlosed within the <task></task> tags.
-2) Then an evaluation of the task is provided below it enclosed within the <evaluation></evaluation> tags which provides the reason of failure
-3) Then a conversation trace of the task is provided below it enclosed within the <conversation_trace></conversation_trace> tags which provides the conversation between the assistant and the user. Basically this is the trace of the assistant's actions , all tool calls made by the assistant and their outputs and the final reply message to the user.
-4) Then the current policy used for the assistant is provided below it enclosed within the <current_policy></current_policy> tags which provides the current policy used for the assistant
+2) Then the tools available to the retail agent are provided below enclosed within the <tools_list></tools_list> tags.
+3) Then an evaluation of the task is provided below it enclosed within the <evaluation></evaluation> tags which provides the reason of failure
+4) Then a conversation trace of the task is provided below it enclosed within the <conversation_trace></conversation_trace> tags which provides the conversation between the assistant and the user. Basically this is the trace of the assistant's actions , all tool calls made by the assistant and their outputs and the final reply message to the user.
+5) Then the current policy used for the assistant is provided below it enclosed within the <current_policy></current_policy> tags which provides the current policy used for the assistant
 
-Your task is to analyze the task, the evaluation, the conversation trace, and the current policy and suggest a policy improvement.
+Your task is to analyze the task, the evaluation, the conversation trace, the current policy, and the tools list and suggest a policy improvement.
 
 Be concise. Focus on actionable policy changes.
 
 <task>
 {task_desc}
 </task>
+
+<tools_list>
+{tools_list}
+</tools_list>
 
 <evaluation>
 {reward_info}
