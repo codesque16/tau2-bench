@@ -323,12 +323,7 @@ Always follow the policy.
 """.strip()
 
 SYSTEM_PROMPT_SOLO = """
-<instructions>
-{agent_instruction}
-</instructions>
-<policy>
 {domain_policy}
-</policy>
 <ticket>
 {ticket}
 </ticket>
@@ -551,12 +546,7 @@ Always follow the policy.
 """.strip()
 
 SYSTEM_PROMPT_SOLO2 = """
-<instructions>
-{agent_instruction}
-</instructions>
-<policy>
 {domain_policy}
-</policy>
 <ticket>
 {ticket}
 </ticket>
@@ -656,12 +646,7 @@ MUST also respect this bash/file-based protocol for how you think and act.
 
 
 SYSTEM_PROMPT_BASH_SOLO = """
-<instructions>
-{agent_instruction}
-</instructions>
-<policy>
 {domain_policy}
-</policy>
 <ticket>
 {ticket}
 </ticket>
@@ -725,12 +710,7 @@ You cannot communicate with the user until you have finished all tool calls (or 
 
 
 SYSTEM_PROMPT_REACT_SOLO = """
-<instructions>
-{agent_instruction}
-</instructions>
-<policy>
 {domain_policy}
-</policy>
 <ticket>
 {ticket}
 </ticket>
@@ -802,17 +782,15 @@ class LLMSoloAgent2(LocalAgent[LLMAgentState]):
 
     @property
     def system_prompt(self) -> str:
-        import os
-
-        base = SYSTEM_PROMPT_SOLO2.format(
+        return SYSTEM_PROMPT_SOLO2.format(
             agent_instruction=AGENT_SOLO2_INSTRUCTION,
             domain_policy=self.domain_policy,
             ticket=self.task.ticket,
         )
-        extra = os.environ.get("TAU2_AGENT_EXTRA_INSTRUCTIONS", "").strip()
-        if extra:
-            base += "\n\n## Additional Instructions (GEPA-optimized)\n\n" + extra
-        return base
+        # extra = os.environ.get("TAU2_AGENT_EXTRA_INSTRUCTIONS", "").strip()
+        # if extra:
+        #     base += "\n\n## Additional Instructions (GEPA-optimized)\n\n" + extra
+        # return base
 
     @classmethod
     def is_stop(cls, message: AssistantMessage) -> bool:

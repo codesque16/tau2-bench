@@ -53,6 +53,7 @@ def _log_evaluation_span(simulation: SimulationRun) -> None:
     with logfire.span("evaluation", _span_name="evaluation") as span:
         span.set_attribute("termination_reason", simulation.termination_reason.value)
         span.set_attribute("reward", simulation.reward_info.reward if simulation.reward_info else None)
+        span.set_attribute("error", simulation.error)
         if simulation.reward_info:
             span.set_attribute(
                 "evaluation",
@@ -530,6 +531,8 @@ def run_tasks(
                     )
                 # Nested span: evaluation (what passed/failed, reward, reasons)
                 _log_evaluation_span(simulation)
+                if simulation.error:
+                    task_span.set_attribute("error", simulation.error)
                 # Append result [pass] or [fail] to task span display name
                 reward = (
                     simulation.reward_info.reward

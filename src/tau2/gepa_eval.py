@@ -62,7 +62,7 @@ def _get_retail_available_tools_list() -> str:
     except ImportError:
         return "(Retail tools schema unavailable: domain not loaded)"
     lines = ["Tool list available to the agent:"]
-    tool_names: list[str] = []
+    tools: list[tuple[str, str]] = []
     excluded = {"bash", "all_todo_done"}
     for name in dir(RetailTools):
         if name.startswith("_"):
@@ -72,11 +72,24 @@ def _get_retail_available_tools_list() -> str:
         try:
             method = getattr(RetailTools, name)
             if callable(method) and getattr(method, "__tool__", False):
-                tool_names.append(name)
+                # Include a compact view of tool arguments to make the
+                # optimizer/evaluator prompts more actionable.
+                sig_str = ""
+                try:
+                    sig = inspect.signature(method)
+                    params = []
+                    for p in sig.parameters.values():
+                        if p.name in {"self", "cls"}:
+                            continue
+                        params.append(str(p))
+                    sig_str = f"({', '.join(params)})"
+                except Exception:
+                    sig_str = "()"
+                tools.append((name, sig_str))
         except Exception:
             pass
-    for idx, name in enumerate(sorted(tool_names), start=1):
-        lines.append(f"{idx}) {name}")
+    for idx, (name, sig_str) in enumerate(sorted(tools, key=lambda x: x[0]), start=1):
+        lines.append(f"{idx}) {name}{sig_str}")
     return "\n".join(lines).strip()
 
 
@@ -171,9 +184,30 @@ def _format_reward_info(sim: SimulationRun) -> str:
             if not c.met and c.justification:
                 parts.append(f"  Justification: {c.justification}")
     if ri.action_checks:
+        def _dump(obj: object | None) -> str:
+            try:
+                return json.dumps(obj or {}, ensure_ascii=False, sort_keys=True)
+            except Exception:
+                return str(obj or {})
+
         for ac in ri.action_checks:
             if not ac.action_match:
-                parts.append(f"Action {ac.action.name}: MISMATCH - {ac.mismatch_reason}")
+                expected_args = getattr(ac.action, "arguments", None)
+                reason = (ac.mismatch_reason or "mismatch").strip()
+                if reason == "not_called":
+                    parts.append(
+                        f"Action {ac.action.name}: NOT CALLED (expected_args={_dump(expected_args)})"
+                    )
+                elif reason == "arguments_mismatch":
+                    parts.append(
+                        f"Action {ac.action.name}: ARGUMENTS_MISMATCH "
+                        f"(expected_args={_dump(expected_args)}, actual_args={_dump(ac.actual_arguments)})"
+                    )
+                else:
+                    parts.append(
+                        f"Action {ac.action.name}: MISMATCH ({reason}) "
+                        f"(expected_args={_dump(expected_args)}, actual_args={_dump(ac.actual_arguments)})"
+                    )
     return "\n".join(parts)
 
 
@@ -208,16 +242,28 @@ def _get_qualitative_asi(
         reward_info = _format_reward_info(sim)
         tools_list = _get_retail_available_tools_list()
 
-        prompt = f"""You are analyzing a failed retail customer-service task . You're task is to diagnose the problem and suggest a policy improvement. The assistant is expected to complete the given task by making all the required tool calls first, and only when all actions are complete, send a single final reply message to the user.
-1) The task details are provided below envlosed within the <task></task> tags.
-2) Then the tools available to the retail agent are provided below enclosed within the <tools_list></tools_list> tags.
-3) Then an evaluation of the task is provided below it enclosed within the <evaluation></evaluation> tags which provides the reason of failure
-4) Then a conversation trace of the task is provided below it enclosed within the <conversation_trace></conversation_trace> tags which provides the conversation between the assistant and the user. Basically this is the trace of the assistant's actions , all tool calls made by the assistant and their outputs and the final reply message to the user.
-5) Then the current policy used for the assistant is provided below it enclosed within the <current_policy></current_policy> tags which provides the current policy used for the assistant
+        prompt = f"""You are an evaluator producing feedback for a retail customer-service trace.
 
-Your task is to analyze the task, the evaluation, the conversation trace, the current policy, and the tools list and suggest a policy improvement.
+Your goal is to analyse the <current_policy> trace and reward info and give a diagnostic analysis of what went wrong along with policy improvements to the <current_policy>, 
+BUT you are only allowed to suggest changes within EXACTLY these three sections:
+1) SOP Global Policies
+2) SOP Node Policies
+3) SOP Flowchart
 
-Be concise. Focus on actionable policy changes.
+You MUST output feedback for this trace (it is a failed trace) in the following <format>. 
+
+<format>
+### Diagnostic Analysis
+...
+
+### Policy Improvements
+1) SOP Global Policies
+    ...
+2) SOP Node Policies
+    ...
+3) SOP Flowchart
+    ...
+</format>
 
 <task>
 {task_desc}
@@ -238,13 +284,7 @@ Be concise. Focus on actionable policy changes.
 <current_policy>
 {policy_preview}
 </current_policy>
-
-Analyze:
-1. Why did the task fail? (db mismatch, missing communication, wrong action, etc.)
-2. What could the policy clarify or add to prevent this?
-3. Any specific improvement suggestions for the policy?
-
-Be concise. Focus on actionable policy changes."""
+"""
 
         try:
             resp = completion(
