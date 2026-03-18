@@ -80,15 +80,16 @@ def _serialize_message(msg: Any) -> dict[str, Any]:
 
 
 def _get_retail_available_tools_list() -> str:
-    """Build a readable list of available retail tools with parameter inputs for the optimizer.
+    """Build a compact tools list for the optimizer prompt.
 
-    Used so the reflection prompt sees what tools the agent had access to and their schemas.
+    The optimizer benefits most from a simple, stable list of tool names to reason about
+    missing capabilities. Detailed schemas can be derived from traces when needed.
     """
     try:
         from tau2.domains.retail.tools import RetailTools
     except ImportError:
         return "(Retail tools schema unavailable: domain not loaded)"
-    lines = ["Available tools (name and parameters):", ""]
+    lines = ["Tool list available to the agent:"]
     tool_names: list[str] = []
     for name in dir(RetailTools):
         if name.startswith("_"):
@@ -99,52 +100,69 @@ def _get_retail_available_tools_list() -> str:
                 tool_names.append(name)
         except Exception:
             pass
-    for name in sorted(tool_names):
-        try:
-            method = getattr(RetailTools, name)
-            sig = inspect.signature(method)
-            params = [
-                f"{p.name}: {p.annotation if p.annotation != inspect.Parameter.empty else 'any'}"
-                for p in sig.parameters.values()
-                if p.name != "self"
-            ]
-            doc = (inspect.getdoc(method) or "").strip().split("\n")[0]
-            lines.append(f"- **{name}**")
-            lines.append(f"  Parameters: {', '.join(params)}")
-            if doc:
-                lines.append(f"  Description: {doc}")
-            lines.append("")
-        except Exception:
-            lines.append(f"- **{name}** (schema not extracted)")
-            lines.append("")
+    for idx, name in enumerate(sorted(tool_names), start=1):
+        lines.append(f"{idx}) {name}")
     return "\n".join(lines).strip()
 
 
 def _format_conversation_dialogue(messages: list) -> str:
-    """Format conversation as a readable dialogue (User / Assistant / Tool turns)."""
+    """Format conversation for the optimizer prompt.
+
+    Target format (easy to skim):
+    [User]:
+      ...
+    [Assistant]:
+      (ToolCall) tool_name {...}
+      (ToolCall) tool_name {...}
+      assistant text...
+    [Tool]:
+      tool_name -> tool response...
+    """
+
+    def _inline_json(obj: object | None) -> str:
+        try:
+            return json.dumps(obj or {}, ensure_ascii=False, sort_keys=True)
+        except Exception:
+            return str(obj or {})
+
     out: list[str] = []
     for msg in messages:
         role = getattr(msg, "role", "unknown")
-        content = (getattr(msg, "content", None) or "").strip()
+        content_raw = getattr(msg, "content", None) or ""
+        content = str(content_raw).strip()
+
         if role == "user":
-            out.append(f"**User:**\n{content}" if content else "**User:** (no text)")
+            out.append("[User]:")
+            out.append(f"  {content}" if content else "  (no text)")
+
         elif role == "assistant":
-            parts = []
-            if content:
-                parts.append(content)
+            out.append("[Assistant]:")
             if hasattr(msg, "tool_calls") and msg.tool_calls:
                 for tc in msg.tool_calls:
                     name = getattr(tc, "name", "?")
+                    tool_id = getattr(tc, "id", None) or getattr(tc, "tool_id", None) or "unknown"
                     args = getattr(tc, "arguments", None)
-                    args_str = json.dumps(args, indent=2) if args else "{}"
-                    parts.append(f"ToolCall: {name}({args_str})")
-            out.append("**Assistant:**\n" + "\n".join(parts) if parts else "**Assistant:** (tool calls only)")
+                    out.append(f"  (ToolCall : {tool_id}) {name} {_inline_json(args)}")
+            if content:
+                out.extend([f"  {line}" for line in content.splitlines()])
+            else:
+                out.append("  (no assistant text)")
+
         elif role == "tool":
             name = getattr(msg, "name", "tool")
-            out.append(f"**Tool ({name}):**\n{content}" if content else f"**Tool ({name}):** (empty)")
+            tool_id = getattr(msg, "tool_id", None) or getattr(msg, "id", None) or "unknown"
+            out.append(f"  (Tool output: {tool_id}) {name}")
+            if content:
+                out.extend([f"    {line}" for line in content.splitlines()])
+            else:
+                out.append("    (empty)")
+
         else:
-            out.append(f"**[{role}]:**\n{content}" if content else f"**[{role}]**")
+            out.append(f"[{str(role).title()}]:")
+            out.append(f"  {content}" if content else "  (no text)")
+
         out.append("")
+
     return "\n".join(out).strip()
 
 
@@ -194,24 +212,36 @@ def _get_qualitative_asi(
         sim = sims_by_task.get(tid)
         if not task or not sim:
             continue
-        task_desc = str(task.user_scenario) if hasattr(task, "user_scenario") and task.user_scenario else f"Task {tid}"
+        task_desc = task.ticket
         # Use full, untruncated trace for qualitative diagnosis.
         trace = _format_trace(sim.messages, max_messages=None)
         reward_info = _format_reward_info(sim)
 
-        prompt = f"""You are analyzing a failed retail customer-service task for GEPA policy optimization.
+        prompt = f"""You are analyzing a failed retail customer-service task . You're task is to diagnose the problem and suggest a policy improvement. The assistant is expected to complete the given task by making all the required tool calls first, and only when all actions are complete, send a single final reply message to the user.
+1) The task details are provided below envlosed within the <task></task> tags.
+2) Then an evaluation of the task is provided below it enclosed within the <evaluation></evaluation> tags which provides the reason of failure
+3) Then a conversation trace of the task is provided below it enclosed within the <conversation_trace></conversation_trace> tags which provides the conversation between the assistant and the user. Basically this is the trace of the assistant's actions , all tool calls made by the assistant and their outputs and the final reply message to the user.
+4) Then the current policy used for the assistant is provided below it enclosed within the <current_policy></current_policy> tags which provides the current policy used for the assistant
 
-## Task
-{task_desc[:1500]}
+Your task is to analyze the task, the evaluation, the conversation trace, and the current policy and suggest a policy improvement.
 
-## What went wrong (evaluation)
+Be concise. Focus on actionable policy changes.
+
+<task>
+{task_desc}
+</task>
+
+<evaluation>
 {reward_info}
+</evaluation>
 
-## Conversation trace
+<conversation_trace>
 {trace}
+</conversation_trace>
 
-## Current policy (preview)
-{policy_preview[:2000]}
+<current_policy>
+{policy_preview}
+</current_policy>
 
 Analyze:
 1. Why did the task fail? (db mismatch, missing communication, wrong action, etc.)
@@ -242,10 +272,10 @@ def evaluate_for_gepa(
     task_set_name: str = "retail_solo_comms",
     agent: str = "llm_agent_solo2",
     user: str = "dummy_user",
-    llm_agent: str = "gpt-5-mini",
+    llm_agent: str = "gpt-5-nano",
     max_steps: int = 60,
     num_trials: int = 1,
-    seed: int = 7789797979,
+    seed: int | None = None,
     log_level: str = "WARNING",
     solo_comms_only: bool = False,
     diagnosis_lm: str | None = None,
@@ -283,6 +313,11 @@ def evaluate_for_gepa(
         (score, feedback_dict) where score is pass^1 (higher is better) and
         feedback_dict contains metrics and per-task diagnostics for GEPA reflection.
     """
+    import random
+
+    # If seed is not provided, vary it per call to avoid deterministic coupling.
+    effective_seed = seed if seed is not None else random.randrange(1, 1_000_000_000)
+
     tasks = get_tasks(
         task_set_name=task_set_name,
         task_split_name="base",
@@ -356,7 +391,7 @@ def evaluate_for_gepa(
                     console_display=False,
                     evaluation_type=EvaluationType.ALL,
                     max_concurrency=1,
-                    seed=seed,
+                    seed=effective_seed,
                     log_level=log_level,
                     solo_eval_db_only=False,
                     policy_override=policy_override,
@@ -368,7 +403,7 @@ def evaluate_for_gepa(
                     task_rewards = df.groupby("task_id")["reward"].mean()
                     failed_tasks = [tid for tid, r in task_rewards.items() if r < 0.99]
                 if failed_tasks and diagnosis_lm:
-                    policy_preview = (policy_override or agent_extra_instructions or "")[:3000]
+                    policy_preview = (policy_override or agent_extra_instructions or "")
                     qualitative_asi = _get_qualitative_asi(
                         results=results,
                         failed_task_ids=failed_tasks,
@@ -386,11 +421,11 @@ def evaluate_for_gepa(
     # Build feedback for GEPA reflection
     feedback: dict[str, Any] = {
         "score": score,
-        "avg_reward": metrics.avg_reward,
-        "pass_hat_1": metrics.pass_hat_ks.get(1),
-        "avg_agent_cost": metrics.avg_agent_cost,
-        "num_tasks": len(tasks),
-        "num_trials": num_trials,
+        # "avg_reward": metrics.avg_reward,
+        # "pass_hat_1": metrics.pass_hat_ks.get(1),
+        # "avg_agent_cost": metrics.avg_agent_cost,
+        # "num_tasks": len(tasks),
+        # "num_trials": num_trials,
     }
 
     # Per-task diagnostics (what went wrong)
@@ -422,22 +457,17 @@ def evaluate_for_gepa(
 
     per_task_traces: dict[str, dict[str, Any]] = {}
     for tid, sim in sims_by_task.items():
+        task_obj = task_by_id.get(tid)
+        ticket_text = task_obj.ticket
         messages = getattr(sim, "messages", [])
         # Conversation as readable dialogue (User / Assistant / Tool).
         conversation_text = _format_conversation_dialogue(messages)
-        # Tool calls made in this conversation (for reference).
-        tools_used: list[dict[str, Any]] = []
-        for msg in messages:
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    tools_used.append(
-                        {"name": getattr(tc, "name", None), "arguments": getattr(tc, "arguments", None)}
-                    )
+        reward_info_text = _format_reward_info(sim)
 
         per_task_traces[tid] = {
-            "task_description": str(getattr(task_by_id.get(tid), "user_scenario", "")) or None,
+            "task_description": ticket_text,
+            "reward_info": reward_info_text,
             "conversation": conversation_text,
-            "tools_used": tools_used,
         }
 
     if per_task_traces:
