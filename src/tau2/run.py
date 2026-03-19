@@ -256,6 +256,7 @@ def run_domain(config: RunConfig) -> Results:
             mcp_server_url=config.mcp_server_url,
             mcp_sop_file=config.mcp_sop_file,
             solo_eval_db_only=getattr(config, "solo_eval_db_only", False),
+            policy_override=getattr(config, "policy_override", None),
         )
         metrics = compute_metrics(simulation_results)
         # Dedicated metrics span for evaluation results (nested under top span)

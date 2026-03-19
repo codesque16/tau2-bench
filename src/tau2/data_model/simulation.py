@@ -196,6 +196,13 @@ class RunConfig(BaseModel):
             default=None,
         ),
     ]
+    policy_override: Annotated[
+        Optional[str],
+        Field(
+            description="Optional policy override content. Currently used by retail solo-mode environments.",
+            default=None,
+        ),
+    ]
     solo_eval_db_only: Annotated[
         bool,
         Field(

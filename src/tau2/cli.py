@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from tau2.config import (
     DEFAULT_AGENT_IMPLEMENTATION,
@@ -178,6 +179,13 @@ def add_run_args(parser):
         help="SOP file or agent name for MCP load_graph (e.g. retail). Only used when --agent is llm_mermaid_agent.",
     )
     parser.add_argument(
+        "--policy-file",
+        dest="policy_file",
+        type=str,
+        default=None,
+        help="(Retail solo) Path to a policy file. Contents override the default retail solo policy (passed as policy_override).",
+    )
+    parser.add_argument(
         "--solo-eval-db-only",
         dest="solo_eval_db_only",
         action="store_true",
@@ -206,6 +214,9 @@ def main():
             llm_args_agent["reasoning_effort"] = args.reasoning_effort
         mcp_server_url = getattr(args, "mcp_server_url", None)
         mcp_sop_file = getattr(args, "mcp_sop_file", None)
+        policy_override = None
+        if getattr(args, "policy_file", None):
+            policy_override = Path(args.policy_file).read_text(encoding="utf-8")
         print(f"[CLI] mcp_server_url={mcp_server_url!r} mcp_sop_file={mcp_sop_file!r}", file=sys.stderr, flush=True)
         solo_eval_db_only = getattr(args, "solo_eval_db_only", False) or (
             getattr(args, "task_set_name", None) == "retail_solo_all"
@@ -235,6 +246,7 @@ def main():
                 service_name=args.service_name,
                 mcp_server_url=mcp_server_url,
                 mcp_sop_file=mcp_sop_file,
+                policy_override=policy_override,
                 solo_eval_db_only=solo_eval_db_only,
                 solo_comms_only=getattr(args, "solo_comms_only", False),
             )
