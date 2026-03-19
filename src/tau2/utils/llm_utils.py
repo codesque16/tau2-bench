@@ -9,8 +9,6 @@ from litellm.caching.caching import Cache
 from litellm.main import ModelResponse, Usage
 from loguru import logger
 
-from litellm.exceptions import ServiceUnavailableError, Timeout as LitellmTimeout
-
 # Application-level retries for 503/timeout (after LiteLLM's own retries are exhausted)
 TRANSIENT_ERROR_MAX_RETRIES = 3
 TRANSIENT_ERROR_BASE_DELAY = 5
@@ -37,6 +35,7 @@ from tau2.data_model.message import (
     UserMessage,
 )
 from tau2.environment.tool import Tool
+from tau2.utils.key_pool import key_pool_from_env, is_transient_error
 
 # litellm._turn_on_debug()
 
@@ -78,6 +77,38 @@ ALLOW_SONNET_THINKING = False
 
 if not ALLOW_SONNET_THINKING:
     logger.warning("Sonnet thinking is disabled")
+
+
+OPENAI_KEY_POOL = key_pool_from_env(
+    primary_env="OPENAI_API_KEY",
+    pool_envs=("OPENAI_API_KEYS",),
+    cooldown_env="OPENAI_KEY_FAILOVER_COOLDOWN_S",
+)
+GEMINI_KEY_POOL = key_pool_from_env(
+    primary_env="GOOGLE_API_KEY",
+    fallback_primary_envs=("GEMINI_API_KEY",),
+    pool_envs=("GOOGLE_API_KEYS", "GEMINI_API_KEYS"),
+    cooldown_env="GEMINI_KEY_FAILOVER_COOLDOWN_S",
+)
+
+
+def _provider_for_model(model: str) -> str | None:
+    m = (model or "").lower().strip()
+    if not m:
+        return None
+    if m.startswith("openai/") or m.startswith("gpt-") or "openai" in m:
+        return "openai"
+    if m.startswith("gemini/") or m.startswith("gemini-") or "gemini" in m:
+        return "gemini"
+    return None
+
+
+def _mask_key(api_key: str | None) -> str:
+    if not api_key:
+        return "none"
+    if len(api_key) <= 8:
+        return f"{api_key[:2]}***"
+    return f"{api_key[:4]}...{api_key[-4:]}"
 
 
 def _parse_ft_model_name(model: str) -> str:
@@ -162,6 +193,53 @@ def get_response_usage(response: ModelResponse) -> Optional[dict]:
     elif getattr(usage, "reasoning_tokens", None) is not None:
         out["reasoning_tokens"] = int(usage.reasoning_tokens)
     return out
+
+
+def _set_usage_attrs_on_span(span: Any, usage: dict[str, Any] | None) -> None:
+    """Attach token usage to span in both OpenInference and GenAI key formats."""
+    if not usage:
+        return
+
+    prompt_tokens = usage.get("prompt_tokens")
+    completion_tokens = usage.get("completion_tokens")
+    total_tokens = usage.get("total_tokens")
+
+    if prompt_tokens is not None:
+        prompt_tokens = int(prompt_tokens)
+        span.set_attribute("llm.token_count.prompt", prompt_tokens)
+        span.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)
+    if completion_tokens is not None:
+        completion_tokens = int(completion_tokens)
+        span.set_attribute("llm.token_count.completion", completion_tokens)
+        span.set_attribute("gen_ai.usage.output_tokens", completion_tokens)
+    if total_tokens is not None:
+        total_tokens = int(total_tokens)
+        span.set_attribute("llm.token_count.total", total_tokens)
+        span.set_attribute("gen_ai.usage.total_tokens", total_tokens)
+
+    reasoning_tokens = usage.get("reasoning_tokens")
+    completion_details = usage.get("completion_tokens_details") or {}
+    reasoning_from_details = completion_details.get("reasoning")
+    reasoning_from_details_alt = completion_details.get("reasoning_tokens")
+    if reasoning_tokens is None:
+        reasoning_tokens = (
+            reasoning_from_details
+            if reasoning_from_details is not None
+            else reasoning_from_details_alt
+        )
+    if reasoning_tokens is not None:
+        reasoning_tokens = int(reasoning_tokens)
+        # OpenInference style
+        span.set_attribute(
+            "llm.token_count.completion_details.reasoning", reasoning_tokens
+        )
+        span.set_attribute(
+            "llm.token_count.completion_details.reasoning_tokens", reasoning_tokens
+        )
+        # GenAI style (used by some UIs)
+        span.set_attribute(
+            "gen_ai.usage.output_tokens_details.reasoning", reasoning_tokens
+        )
 
 
 def to_tau2_messages(
@@ -267,42 +345,141 @@ def generate(
     if tools and tool_choice is None:
         tool_choice = "auto"
 
-    def _do_completion():
+    provider = _provider_for_model(model)
+    key_pool = OPENAI_KEY_POOL if provider == "openai" else GEMINI_KEY_POOL if provider == "gemini" else None
+
+    def _do_completion(api_key: str | None = None):
+        call_kwargs = dict(kwargs)
+        if api_key:
+            # Pass key per call so we can rotate keys without mutating global env.
+            call_kwargs["api_key"] = api_key
         return litellm.completion(
             model=model,
             messages=litellm_messages,
             tools=tools,
             tool_choice=tool_choice,
-            **kwargs,
+            **call_kwargs,
         )
 
     for attempt in range(TRANSIENT_ERROR_MAX_RETRIES + 1):
-        try:
-            if caller:
-                with logfire.span(caller) as caller_span:
-                    response = _do_completion()
+        api_key = key_pool.choose() if key_pool is not None else None
+        if caller:
+            with logfire.span(caller) as caller_span:
+                caller_span.set_attribute("llm.provider", provider)
+                caller_span.set_attribute("llm.retry_attempt", attempt + 1)
+                caller_span.set_attribute("llm.key_masked", _mask_key(api_key))
+                logfire.info(
+                    "llm.key_attempt",
+                    caller=caller,
+                    provider=provider or "unknown",
+                    model=model,
+                    attempt=attempt + 1,
+                    max_attempts=TRANSIENT_ERROR_MAX_RETRIES + 1,
+                    key_masked=_mask_key(api_key),
+                )
+                try:
+                    response = _do_completion(api_key=api_key)
+                    logfire.info(
+                        "llm.key_success",
+                        caller=caller,
+                        provider=provider or "unknown",
+                        model=model,
+                        attempt=attempt + 1,
+                        max_attempts=TRANSIENT_ERROR_MAX_RETRIES + 1,
+                        key_masked=_mask_key(api_key),
+                    )
+                    usage = get_response_usage(response)
+                    _set_usage_attrs_on_span(caller_span, usage)
                     if response.choices:
                         msg = response.choices[0].message
                         reasoning = getattr(msg, "reasoning_content", None)
                         if reasoning:
                             caller_span.set_attribute("reasoning_content", reasoning)
-                            caller_span.set_attribute("reasoning_content_length", len(reasoning))
-            else:
-                response = _do_completion()
-            break
-        except (ServiceUnavailableError, LitellmTimeout) as e:
-            if attempt < TRANSIENT_ERROR_MAX_RETRIES:
-                delay = TRANSIENT_ERROR_BASE_DELAY * (2**attempt)
-                logger.warning(
-                    "Transient API error (%s), retrying in %.0fs (attempt %d/%d): %s",
-                    type(e).__name__,
-                    delay,
-                    attempt + 1,
-                    TRANSIENT_ERROR_MAX_RETRIES,
-                    e,
+                            caller_span.set_attribute(
+                                "reasoning_content_length", len(reasoning)
+                            )
+                    break
+                except Exception as e:
+                    transient = is_transient_error(e)
+                    if transient and key_pool is not None and api_key:
+                        key_pool.mark_unhealthy(api_key)
+                    if transient and attempt < TRANSIENT_ERROR_MAX_RETRIES:
+                        delay = TRANSIENT_ERROR_BASE_DELAY * (2**attempt)
+                        log_payload = {
+                            "caller": caller or "unknown",
+                            "provider": provider or "unknown",
+                            "model": model,
+                            "attempt": attempt + 1,
+                            "max_attempts": TRANSIENT_ERROR_MAX_RETRIES + 1,
+                            "delay_seconds": delay,
+                            "key_masked": _mask_key(api_key),
+                            "error_type": type(e).__name__,
+                            "error": str(e),
+                        }
+                        logger.warning(
+                            "Transient API error (%s), retrying in %.0fs (attempt %d/%d): %s",
+                            type(e).__name__,
+                            delay,
+                            attempt + 1,
+                            TRANSIENT_ERROR_MAX_RETRIES,
+                            e,
+                        )
+                        # Emitted within this caller span, so traces stay correctly nested.
+                        logfire.info("llm.key_failover_retry", **log_payload)
+                        time.sleep(delay)
+                        continue
+                    logger.error(e)
+                    raise
+        else:
+            try:
+                logfire.info(
+                    "llm.key_attempt",
+                    caller="unknown",
+                    provider=provider or "unknown",
+                    model=model,
+                    attempt=attempt + 1,
+                    max_attempts=TRANSIENT_ERROR_MAX_RETRIES + 1,
+                    key_masked=_mask_key(api_key),
                 )
-                time.sleep(delay)
-            else:
+                response = _do_completion(api_key=api_key)
+                logfire.info(
+                    "llm.key_success",
+                    caller="unknown",
+                    provider=provider or "unknown",
+                    model=model,
+                    attempt=attempt + 1,
+                    max_attempts=TRANSIENT_ERROR_MAX_RETRIES + 1,
+                    key_masked=_mask_key(api_key),
+                )
+                break
+            except Exception as e:
+                transient = is_transient_error(e)
+                if transient and key_pool is not None and api_key:
+                    key_pool.mark_unhealthy(api_key)
+                if transient and attempt < TRANSIENT_ERROR_MAX_RETRIES:
+                    delay = TRANSIENT_ERROR_BASE_DELAY * (2**attempt)
+                    log_payload = {
+                        "caller": "unknown",
+                        "provider": provider or "unknown",
+                        "model": model,
+                        "attempt": attempt + 1,
+                        "max_attempts": TRANSIENT_ERROR_MAX_RETRIES + 1,
+                        "delay_seconds": delay,
+                        "key_masked": _mask_key(api_key),
+                        "error_type": type(e).__name__,
+                        "error": str(e),
+                    }
+                    logger.warning(
+                        "Transient API error (%s), retrying in %.0fs (attempt %d/%d): %s",
+                        type(e).__name__,
+                        delay,
+                        attempt + 1,
+                        TRANSIENT_ERROR_MAX_RETRIES,
+                        e,
+                    )
+                    logfire.info("llm.key_failover_retry", **log_payload)
+                    time.sleep(delay)
+                    continue
                 logger.error(e)
                 raise
     cost = get_response_cost(response)
