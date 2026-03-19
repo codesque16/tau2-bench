@@ -1,4 +1,4 @@
-# Retail agent policy (**One Shot mode**)
+# Retail agent policy
 
 **One Shot mode** You cannot communicate with the user until you have finished all tool calls.
 Use the appropriate tools to complete the ticket; when you are done, send a single final message to the user summarizing what you did and answering any user queries
