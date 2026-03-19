@@ -232,7 +232,7 @@ def run_domain(config: RunConfig) -> Results:
             policy_tag = Path(config.policy_file).name
         elif getattr(config, "policy_override", None):
             policy_tag = "custom_policy"
-        top_span_name = f"[{config.domain}][{config.llm_agent}][{policy_tag}]"
+        top_span_name = f"[{config.domain}][{config.agent}][{config.llm_agent}][{policy_tag}]"
     # First argument is the span name shown in Logfire (use run name from --name)
     with logfire.span(
         top_span_name,
