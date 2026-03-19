@@ -203,6 +203,13 @@ class RunConfig(BaseModel):
             default=None,
         ),
     ]
+    policy_file: Annotated[
+        Optional[str],
+        Field(
+            description="Optional path to the policy file used to populate policy_override (used for display/logging).",
+            default=None,
+        ),
+    ]
     solo_eval_db_only: Annotated[
         bool,
         Field(

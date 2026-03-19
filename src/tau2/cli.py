@@ -221,6 +221,7 @@ def main():
         solo_eval_db_only = getattr(args, "solo_eval_db_only", False) or (
             getattr(args, "task_set_name", None) == "retail_solo_all"
         )
+        policy_file = getattr(args, "policy_file", None)
         return run_domain(
             RunConfig(
                 domain=args.domain,
@@ -247,6 +248,7 @@ def main():
                 mcp_server_url=mcp_server_url,
                 mcp_sop_file=mcp_sop_file,
                 policy_override=policy_override,
+                policy_file=policy_file,
                 solo_eval_db_only=solo_eval_db_only,
                 solo_comms_only=getattr(args, "solo_comms_only", False),
             )

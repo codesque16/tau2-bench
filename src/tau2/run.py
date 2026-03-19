@@ -224,7 +224,15 @@ def run_domain(config: RunConfig) -> Results:
     if save_to is None:
         save_to = make_run_name(config)
     save_to = DATA_DIR / "simulations" / f"{save_to}.json"
-    top_span_name = config.run_name if config.run_name else "simulation_run"
+    if config.run_name:
+        top_span_name = config.run_name
+    else:
+        policy_tag = "default_policy"
+        if getattr(config, "policy_file", None):
+            policy_tag = Path(config.policy_file).name
+        elif getattr(config, "policy_override", None):
+            policy_tag = "custom_policy"
+        top_span_name = f"[{config.domain}][{config.llm_agent}][{policy_tag}]"
     # First argument is the span name shown in Logfire (use run name from --name)
     with logfire.span(
         top_span_name,
