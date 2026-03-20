@@ -17,8 +17,19 @@ import logfire
 
 from tau2.data_model.simulation import Results, SimulationRun
 from tau2.evaluator.evaluator import EvaluationType
-from tau2.metrics.agent_metrics import compute_metrics
-from tau2.run import get_tasks, run_tasks
+from tau2.metrics.agent_metrics import compute_metrics, is_successful
+from tau2.run import _set_span_display_name, get_tasks, run_tasks
+
+
+def _gepa_eval_all_tasks_pass(results: Results) -> bool:
+    """True iff every task's mean reward counts as success (same threshold as task spans)."""
+    df = results.to_df()
+    if df.empty or "reward" not in df.columns or "task_id" not in df.columns:
+        return False
+    for mean_reward in df.groupby("task_id")["reward"].mean():
+        if not is_successful(float(mean_reward)):
+            return False
+    return True
 
 
 def _serialize_message(msg: Any) -> dict[str, Any]:
@@ -415,7 +426,7 @@ def evaluate_for_gepa(
                     suffix = suffix_map.get(eval_type_, f" ({eval_type_})" if eval_type_ else "")
                     mb_str = f" minibatch_size={minibatch_size_}" if minibatch_size_ is not None else ""
                     span_name = f"gepa_eval iter={iter_} ({split_}){suffix}{task_str}{mb_str}"
-            with logfire.span(span_name, **span_attrs):
+            with logfire.span(span_name, **span_attrs) as gepa_span:
                 results = run_tasks(
                     domain=domain,
                     tasks=tasks,
@@ -433,6 +444,9 @@ def evaluate_for_gepa(
                     solo_eval_db_only=False,
                     policy_override=policy_override,
                 )
+                outcome = "pass" if _gepa_eval_all_tasks_pass(results) else "fail"
+                gepa_span.set_attribute("eval_outcome", outcome)
+                _set_span_display_name(gepa_span, f"{span_name} [{outcome}]")
                 # Run diagnostic LLM inside gepa_eval span so completion spans nest
                 df = results.to_df()
                 failed_tasks: list[str] = []
