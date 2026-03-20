@@ -48,6 +48,36 @@ def _set_span_display_name(span, name: str) -> None:
         span.set_attribute("name", name)
 
 
+def _format_agent_llm_args_for_span(
+    llm_args: Optional[dict], *, max_len: int = 96
+) -> str:
+    """Compact k=v summary of agent LLM kwargs for Logfire span names (sorted keys, truncated)."""
+    if not llm_args:
+        return ""
+    parts: list[str] = []
+    for k in sorted(llm_args.keys()):
+        v = llm_args[k]
+        if v is None:
+            continue
+        if isinstance(v, (dict, list)):
+            try:
+                vs = json.dumps(v, sort_keys=True, separators=(",", ":"))
+            except TypeError:
+                vs = str(v)
+        elif isinstance(v, float) and v.is_integer():
+            vs = str(int(v))
+        else:
+            vs = str(v)
+        key = str(k).replace(" ", "_")
+        parts.append(f"{key}={vs}")
+    if not parts:
+        return ""
+    s = ",".join(parts)
+    if len(s) > max_len:
+        s = s[: max_len - 3] + "..."
+    return s
+
+
 def _log_evaluation_span(simulation: SimulationRun) -> None:
     """Emit a nested 'evaluation' span with reward, what passed/failed, and reasons."""
     with logfire.span("evaluation", _span_name="evaluation") as span:
@@ -232,7 +262,14 @@ def run_domain(config: RunConfig) -> Results:
             policy_tag = Path(config.policy_file).name
         elif getattr(config, "policy_override", None):
             policy_tag = "custom_policy"
-        top_span_name = f"[{config.domain}][{config.agent}][{config.llm_agent}][{policy_tag}]"
+        args_tag = _format_agent_llm_args_for_span(
+            getattr(config, "llm_args_agent", None) or {}
+        )
+        top_span_name = (
+            f"[{config.domain}][{config.agent}][{config.llm_agent}]"
+            + (f"[{args_tag}]" if args_tag else "")
+            + f"[{policy_tag}]"
+        )
     # First argument is the span name shown in Logfire (use run name from --name)
     with logfire.span(
         top_span_name,

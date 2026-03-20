@@ -111,6 +111,25 @@ def _mask_key(api_key: str | None) -> str:
     return f"{api_key[:4]}...{api_key[-4:]}"
 
 
+def _short_id(s: str, max_len: int = 24) -> str:
+    s = s or ""
+    if not s:
+        return "none"
+    if len(s) <= max_len:
+        return s
+    return s[:max_len] + "..."
+
+
+def _sanitize_tool_call_id(tool_call_id: str | None, *, fallback: str) -> str:
+    """Strip any model-injected suffixes (e.g. '__thought__...') from tool-call ids."""
+    raw = (tool_call_id or "").strip()
+    if not raw:
+        return fallback
+    if "__thought__" in raw:
+        raw = raw.split("__thought__", 1)[0].strip()
+    return raw or fallback
+
+
 def _parse_ft_model_name(model: str) -> str:
     """
     Parse the ft model name from the litellm model name.
@@ -496,15 +515,27 @@ def generate(
         "The response should be an assistant message"
     )
     content = response.message.content
-    tool_calls = response.message.tool_calls or []
-    tool_calls = [
-        ToolCall(
-            id=tool_call.id,
-            name=tool_call.function.name,
-            arguments=json.loads(tool_call.function.arguments),
+    raw_tool_calls = response.message.tool_calls or []
+    tool_calls: list[ToolCall] = []
+    for idx, tool_call in enumerate(raw_tool_calls):
+        raw_id = getattr(tool_call, "id", None)
+        sanitized_id = _sanitize_tool_call_id(raw_id, fallback=f"call_{idx}")
+        if sanitized_id != (raw_id or ""):
+            # IDs can include injected reasoning blobs; keep logs short.
+            logfire.info(
+                "llm.tool_call_id_truncated",
+                provider=provider or "unknown",
+                model=model,
+                raw_id_short=_short_id(str(raw_id or "")),
+                sanitized_id=sanitized_id,
+            )
+        tool_calls.append(
+            ToolCall(
+                id=sanitized_id,
+                name=tool_call.function.name,
+                arguments=json.loads(tool_call.function.arguments),
+            )
         )
-        for tool_call in tool_calls
-    ]
     tool_calls = tool_calls or None
 
     # AssistantMessage must have either content or tool_calls; normalize empty model responses
