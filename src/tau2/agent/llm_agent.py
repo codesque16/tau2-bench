@@ -310,6 +310,41 @@ class LLMGTAgent(LocalAgent[LLMAgentState]):
             raise ValueError(f"Unknown action requestor: {action.requestor}")
 
 
+def _make_reference_steps_for_task(task: Task) -> str:
+    """
+    Build an ordered, guidance-only list of tool names for this task.
+
+    Derived from `task.evaluation_criteria.actions`, but includes tool names only
+    (no arguments / no tool outputs).
+    """
+
+    evaluation_criteria = getattr(task, "evaluation_criteria", None)
+    actions = getattr(evaluation_criteria, "actions", None) or []
+
+    # Prefer assistant-requested actions (these correspond to actual tool calls).
+    tool_names: list[str] = []
+    for a in actions:
+        if getattr(a, "requestor", "assistant") != "assistant":
+            continue
+        name = getattr(a, "name", None)
+        if name:
+            tool_names.append(name)
+
+    # Fallback: if requestor metadata is missing, include anything with a name.
+    if not tool_names:
+        for a in actions:
+            name = getattr(a, "name", None)
+            if name:
+                tool_names.append(name)
+
+    if tool_names:
+        numbered = "\n".join([f"{i + 1}) {name}" for i, name in enumerate(tool_names)])
+    else:
+        numbered = "(no reference tool calls available)"
+
+    return "For similar problems the following flow may be relevant:\n" + numbered
+
+
 AGENT_SOLO_INSTRUCTION = """
 You are a customer service agent that helps the user according to the <policy> provided below.
 You will be provided with a ticket that contains the user's request.
@@ -355,6 +390,7 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
         llm: Optional[str] = None,
         llm_args: Optional[dict] = None,
         solo_eval_db_only: bool = False,
+        include_reference_steps: bool = False,
     ):
         """
         Initialize the LLMAgent.
@@ -370,6 +406,7 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
         self.task = task
         self.llm = llm
         self.llm_args = llm_args if llm_args is not None else {}
+        self.include_reference_steps = include_reference_steps
         self.add_stop_tool()
         self.validate_tools()
 
@@ -433,10 +470,19 @@ class LLMSoloAgent(LocalAgent[LLMAgentState]):
 
     @property
     def system_prompt(self) -> str:
-        return SYSTEM_PROMPT_SOLO.format(
+        base = SYSTEM_PROMPT_SOLO.format(
             agent_instruction=AGENT_SOLO_INSTRUCTION,
             domain_policy=self.domain_policy,
             ticket=self.task.ticket,
+        )
+        if not getattr(self, "include_reference_steps", False):
+            return base
+        reference_steps = _make_reference_steps_for_task(self.task)
+        return (
+            base
+            + "\n\n<reference_steps>\n"
+            + reference_steps
+            + "\n</reference_steps>"
         )
 
     def _check_if_stop_toolcall(self, message: AssistantMessage) -> AssistantMessage:
@@ -734,6 +780,7 @@ class LLMSoloAgent2(LocalAgent[LLMAgentState]):
         llm: Optional[str] = None,
         llm_args: Optional[dict] = None,
         solo_eval_db_only: bool = False,
+        include_reference_steps: bool = False,
     ):
         super().__init__(tools=tools, domain_policy=domain_policy)
         assert self.check_valid_task(
@@ -744,6 +791,7 @@ class LLMSoloAgent2(LocalAgent[LLMAgentState]):
         self.task = task
         self.llm = llm
         self.llm_args = llm_args if llm_args is not None else {}
+        self.include_reference_steps = include_reference_steps
         self.validate_tools()
 
     def validate_tools(self) -> None:
@@ -782,10 +830,19 @@ class LLMSoloAgent2(LocalAgent[LLMAgentState]):
 
     @property
     def system_prompt(self) -> str:
-        return SYSTEM_PROMPT_SOLO2.format(
+        base = SYSTEM_PROMPT_SOLO2.format(
             agent_instruction=AGENT_SOLO2_INSTRUCTION,
             domain_policy=self.domain_policy,
             ticket=self.task.ticket,
+        )
+        if not getattr(self, "include_reference_steps", False):
+            return base
+        reference_steps = _make_reference_steps_for_task(self.task)
+        return (
+            base
+            + "\n\n<reference_steps>\n"
+            + reference_steps
+            + "\n</reference_steps>"
         )
         # extra = os.environ.get("TAU2_AGENT_EXTRA_INSTRUCTIONS", "").strip()
         # if extra:
@@ -874,11 +931,15 @@ class LLMBashSoloAgent2(LLMSoloAgent2):
     @property
     def system_prompt(self) -> str:
         ticket = (self.task.ticket or "").strip()
-        return SYSTEM_PROMPT_BASH_SOLO.format(
+        base = SYSTEM_PROMPT_BASH_SOLO.format(
             agent_instruction=AGENT_BASH_SOLO_INSTRUCTION,
             domain_policy=self.domain_policy,
             ticket=ticket,
         )
+        if not getattr(self, "include_reference_steps", False):
+            return base
+        reference_steps = _make_reference_steps_for_task(self.task)
+        return base + "\n\n<reference_steps>\n" + reference_steps + "\n</reference_steps>"
 
 
 def _react_has_thought_before_action(msg: AssistantMessage) -> bool:
@@ -924,11 +985,15 @@ class LLMReActSoloAgent2(LLMSoloAgent2):
     @property
     def system_prompt(self) -> str:
         ticket = (self.task.ticket or "").strip()
-        return SYSTEM_PROMPT_REACT_SOLO.format(
+        base = SYSTEM_PROMPT_REACT_SOLO.format(
             agent_instruction=AGENT_REACT_SOLO_INSTRUCTION,
             domain_policy=self.domain_policy,
             ticket=ticket,
         )
+        if not getattr(self, "include_reference_steps", False):
+            return base
+        reference_steps = _make_reference_steps_for_task(self.task)
+        return base + "\n\n<reference_steps>\n" + reference_steps + "\n</reference_steps>"
 
     def generate_next_message(
         self,
@@ -1233,6 +1298,7 @@ class LLMMermaidSoloAgent2(LLMMermaidAgent):
         mcp_server_url: str = "",
         sop_file: str = "retail",
         solo_eval_db_only: bool = False,
+        include_reference_steps: bool = False,
     ):
         super().__init__(
             tools=tools,
@@ -1249,6 +1315,7 @@ class LLMMermaidSoloAgent2(LLMMermaidAgent):
         )
         self.task = task
         self.solo_eval_db_only = solo_eval_db_only
+        self.include_reference_steps = include_reference_steps
 
     @classmethod
     def check_valid_task(
@@ -1284,7 +1351,11 @@ class LLMMermaidSoloAgent2(LLMMermaidAgent):
             else SYSTEM_PROMPT_MERMAID.format(domain_policy=self.domain_policy)
         )
         ticket = (self.task.ticket or "").strip()
-        return f"{base}\n\n<ticket>\n{ticket}\n</ticket>"
+        prompt = f"{base}\n\n<ticket>\n{ticket}\n</ticket>"
+        if not getattr(self, "include_reference_steps", False):
+            return prompt
+        reference_steps = _make_reference_steps_for_task(self.task)
+        return prompt + "\n\n<reference_steps>\n" + reference_steps + "\n</reference_steps>"
 
     @classmethod
     def is_stop(cls, message: AssistantMessage) -> bool:

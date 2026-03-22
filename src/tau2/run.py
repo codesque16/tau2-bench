@@ -302,6 +302,7 @@ def run_domain(config: RunConfig) -> Results:
             mcp_sop_file=config.mcp_sop_file,
             solo_eval_db_only=getattr(config, "solo_eval_db_only", False),
             policy_override=getattr(config, "policy_override", None),
+            include_reference_steps=getattr(config, "include_reference_steps", False),
         )
         metrics = compute_metrics(simulation_results)
         # Dedicated metrics span for evaluation results (nested under top span)
@@ -347,6 +348,7 @@ def run_tasks(
     mcp_sop_file: Optional[str] = None,
     solo_eval_db_only: bool = False,
     policy_override: Optional[str] = None,
+    include_reference_steps: bool = False,
 ) -> Results:
     """
     Runs tasks for a given domain.
@@ -574,6 +576,7 @@ def run_tasks(
                         mcp_sop_file=mcp_sop_file,
                         solo_eval_db_only=solo_eval_db_only,
                         policy_override=policy_override,
+                        include_reference_steps=include_reference_steps,
                     )
                 # Nested span: evaluation (what passed/failed, reward, reasons)
                 _log_evaluation_span(simulation)
@@ -663,6 +666,7 @@ def run_task(
     mcp_sop_file: Optional[str] = None,
     solo_eval_db_only: bool = False,
     policy_override: Optional[str] = None,
+    include_reference_steps: bool = False,
 ) -> SimulationRun:
     """
     Runs tasks for a given domain.
@@ -733,6 +737,7 @@ def run_task(
             mcp_server_url=mcp_server_url or "",
             sop_file=mcp_sop_file or "",
             solo_eval_db_only=solo_eval_db_only,
+            include_reference_steps=include_reference_steps,
         )
     # Check LLMMermaidAgent before LLMAgent (LLMMermaidAgent subclasses LLMAgent)
     elif issubclass(AgentConstructor, LLMMermaidAgent):
@@ -790,6 +795,7 @@ def run_task(
             llm_args=llm_args_agent,
             task=task,
             solo_eval_db_only=solo_eval_db_only,
+            include_reference_steps=include_reference_steps,
         )
     elif issubclass(AgentConstructor, LLMSoloAgent2):
         solo_mode = True
@@ -830,6 +836,7 @@ def run_task(
             llm_args=llm_args_agent,
             task=task,
             solo_eval_db_only=solo_eval_db_only,
+            include_reference_steps=include_reference_steps,
         )
     elif issubclass(AgentConstructor, GymAgent):
         agent = AgentConstructor(

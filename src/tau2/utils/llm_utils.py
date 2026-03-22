@@ -1,6 +1,7 @@
 import json
 import re
 import time
+import uuid
 from typing import Any, Literal, Optional
 
 import litellm
@@ -29,6 +30,7 @@ from tau2.config import (
 from tau2.data_model.message import (
     AssistantMessage,
     Message,
+    MultiToolMessage,
     SystemMessage,
     ToolCall,
     ToolMessage,
@@ -128,6 +130,49 @@ def _sanitize_tool_call_id(tool_call_id: str | None, *, fallback: str) -> str:
     if "__thought__" in raw:
         raw = raw.split("__thought__", 1)[0].strip()
     return raw or fallback
+
+
+def _is_timeout_error(e: BaseException) -> bool:
+    """Best-effort timeout detection for retry-side cache busting."""
+    name = type(e).__name__.lower()
+    msg = str(e).lower()
+    return (
+        "timeout" in name
+        or "timedout" in name
+        or "timeout" in msg
+        or "timed out" in msg
+    )
+
+
+def _build_tool_call_id_map(messages: list[Message], *, id_prefix: str = "call") -> dict[str, str]:
+    """
+    Build a consistent old_id -> new_id mapping for tool-call ids found in `messages`.
+
+    This lets us randomize tool ids for cache-busting while keeping call/output correspondence
+    within the same LLM request.
+    """
+    out: dict[str, str] = {}
+
+    def maybe_map(old_id: str) -> None:
+        if not old_id:
+            return
+        if old_id in out:
+            return
+        # Keep ids reasonably short but unique.
+        out[old_id] = f"{id_prefix}_{uuid.uuid4().hex[:16]}"
+
+    for m in messages:
+        if isinstance(m, ToolMessage):
+            maybe_map(m.id)
+        elif isinstance(m, (AssistantMessage, UserMessage)):
+            if m.tool_calls:
+                for tc in m.tool_calls:
+                    maybe_map(tc.id)
+        elif isinstance(m, MultiToolMessage):
+            for tm in m.tool_messages:
+                maybe_map(tm.id)
+
+    return out
 
 
 def _parse_ft_model_name(model: str) -> str:
@@ -285,12 +330,21 @@ def to_tau2_messages(
     return tau2_messages
 
 
-def to_litellm_messages(messages: list[Message]) -> list[dict]:
+def to_litellm_messages(
+    messages: list[Message],
+    *,
+    tool_call_id_map: Optional[dict[str, str]] = None,
+) -> list[dict]:
     """
     Convert a list of Tau2 messages to a list of litellm messages.
     """
     litellm_messages = []
     for message in messages:
+        def _map_id(old_id: str) -> str:
+            if not tool_call_id_map:
+                return old_id
+            return tool_call_id_map.get(old_id, old_id)
+
         if isinstance(message, UserMessage):
             litellm_messages.append({"role": "user", "content": message.content})
         elif isinstance(message, AssistantMessage):
@@ -298,7 +352,7 @@ def to_litellm_messages(messages: list[Message]) -> list[dict]:
             if message.is_tool_call():
                 tool_calls = [
                     {
-                        "id": tc.id,
+                        "id": _map_id(tc.id),
                         "name": tc.name,
                         "function": {
                             "name": tc.name,
@@ -320,9 +374,19 @@ def to_litellm_messages(messages: list[Message]) -> list[dict]:
                 {
                     "role": "tool",
                     "content": message.content,
-                    "tool_call_id": message.id,
+                    "tool_call_id": _map_id(message.id),
                 }
             )
+        elif isinstance(message, MultiToolMessage):
+            # Expand to individual tool messages so their ids can be remapped consistently.
+            for tm in message.tool_messages:
+                litellm_messages.append(
+                    {
+                        "role": "tool",
+                        "content": tm.content,
+                        "tool_call_id": _map_id(tm.id),
+                    }
+                )
         elif isinstance(message, SystemMessage):
             litellm_messages.append({"role": "system", "content": message.content})
     return litellm_messages
@@ -359,7 +423,6 @@ def generate(
 
     if model.startswith("claude") and not ALLOW_SONNET_THINKING:
         kwargs["thinking"] = {"type": "disabled"}
-    litellm_messages = to_litellm_messages(messages)
     tools = [tool.openai_schema for tool in tools] if tools else None
     if tools and tool_choice is None:
         tool_choice = "auto"
@@ -367,7 +430,13 @@ def generate(
     provider = _provider_for_model(model)
     key_pool = OPENAI_KEY_POOL if provider == "openai" else GEMINI_KEY_POOL if provider == "gemini" else None
 
-    def _do_completion(api_key: str | None = None):
+    remap_tool_call_ids_for_retry = False
+
+    def _do_completion(
+        api_key: str | None = None,
+        *,
+        litellm_messages: list[dict],
+    ):
         call_kwargs = dict(kwargs)
         if api_key:
             # Pass key per call so we can rotate keys without mutating global env.
@@ -381,7 +450,14 @@ def generate(
         )
 
     for attempt in range(TRANSIENT_ERROR_MAX_RETRIES + 1):
-        api_key = key_pool.choose() if key_pool is not None else None
+        #api_key = key_pool.choose() if key_pool is not None else None
+        api_key = key_pool.keys[0] if key_pool is not None else None
+        id_map = _build_tool_call_id_map(messages) if remap_tool_call_ids_for_retry else None
+        litellm_messages = (
+            to_litellm_messages(messages, tool_call_id_map=id_map)
+            if id_map is not None
+            else to_litellm_messages(messages)
+        )
         if caller:
             with logfire.span(caller) as caller_span:
                 caller_span.set_attribute("llm.provider", provider)
@@ -397,7 +473,7 @@ def generate(
                     key_masked=_mask_key(api_key),
                 )
                 try:
-                    response = _do_completion(api_key=api_key)
+                    response = _do_completion(api_key=api_key, litellm_messages=litellm_messages)
                     logfire.info(
                         "llm.key_success",
                         caller=caller,
@@ -420,9 +496,12 @@ def generate(
                     break
                 except Exception as e:
                     transient = is_transient_error(e)
-                    if transient and key_pool is not None and api_key:
-                        key_pool.mark_unhealthy(api_key)
+                    # if transient and key_pool is not None and api_key:
+                    #     key_pool.mark_unhealthy(api_key)
                     if transient and attempt < TRANSIENT_ERROR_MAX_RETRIES:
+                        if _is_timeout_error(e):
+                            # Cache-bust the next attempt by randomizing tool_call ids.
+                            remap_tool_call_ids_for_retry = True
                         delay = TRANSIENT_ERROR_BASE_DELAY * (2**attempt)
                         log_payload = {
                             "caller": caller or "unknown",
@@ -460,7 +539,7 @@ def generate(
                     max_attempts=TRANSIENT_ERROR_MAX_RETRIES + 1,
                     key_masked=_mask_key(api_key),
                 )
-                response = _do_completion(api_key=api_key)
+                response = _do_completion(api_key=api_key, litellm_messages=litellm_messages)
                 logfire.info(
                     "llm.key_success",
                     caller="unknown",
@@ -473,9 +552,12 @@ def generate(
                 break
             except Exception as e:
                 transient = is_transient_error(e)
-                if transient and key_pool is not None and api_key:
-                    key_pool.mark_unhealthy(api_key)
+                # if transient and key_pool is not None and api_key:
+                #     key_pool.mark_unhealthy(api_key)
                 if transient and attempt < TRANSIENT_ERROR_MAX_RETRIES:
+                    if _is_timeout_error(e):
+                        # Cache-bust the next attempt by randomizing tool_call ids.
+                        remap_tool_call_ids_for_retry = True
                     delay = TRANSIENT_ERROR_BASE_DELAY * (2**attempt)
                     log_payload = {
                         "caller": "unknown",

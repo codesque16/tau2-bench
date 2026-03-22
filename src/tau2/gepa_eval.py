@@ -222,38 +222,22 @@ def _format_reward_info(sim: SimulationRun) -> str:
     return "\n".join(parts)
 
 
-def _get_qualitative_asi(
-    results: Results,
-    failed_task_ids: list[str],
+def diagnose_single_retail_failure_for_gepa(
+    *,
+    task_description: str,
+    tools_list: str,
+    evaluation_text: str,
+    conversation_trace: str,
     policy_preview: str,
     diagnosis_lm: str,
 ) -> str:
-    """Call LLM to diagnose failed tasks and suggest policy improvements."""
+    """LLM diagnosis + policy improvement suggestions (retail), one failed task."""
     try:
-        import litellm
         from litellm import completion
     except ImportError:
         return "(qualitative ASI skipped: litellm not available)"
 
-    task_by_id = {t.id: t for t in results.tasks}
-    sims_by_task = {}
-    for sim in results.simulations:
-        if sim.task_id not in sims_by_task or (sim.reward_info and sim.reward_info.reward < 0.99):
-            sims_by_task[sim.task_id] = sim
-
-    diagnoses = []
-    for tid in failed_task_ids[:5]:  # Limit to 5 to control cost
-        task = task_by_id.get(tid)
-        sim = sims_by_task.get(tid)
-        if not task or not sim:
-            continue
-        task_desc = task.ticket
-        # Use full, untruncated trace for qualitative diagnosis.
-        trace = _format_trace(sim.messages, max_messages=None)
-        reward_info = _format_reward_info(sim)
-        tools_list = _get_retail_available_tools_list()
-
-        prompt = f"""You are an evaluator producing feedback for a retail customer-service trace.
+    prompt = f"""You are an evaluator producing feedback for a retail customer-service trace.
 
 Your goal is to analyse the <current_policy> trace and reward info and give a diagnostic analysis of what went wrong along with policy improvements to the <current_policy>, 
 BUT you are only allowed to suggest changes within EXACTLY these three sections:
@@ -277,7 +261,7 @@ You MUST output feedback for this trace (it is a failed trace) in the following 
 </format>
 
 <task>
-{task_desc}
+{task_description}
 </task>
 
 <tools_list>
@@ -285,11 +269,11 @@ You MUST output feedback for this trace (it is a failed trace) in the following 
 </tools_list>
 
 <evaluation>
-{reward_info}
+{evaluation_text}
 </evaluation>
 
 <conversation_trace>
-{trace}
+{conversation_trace}
 </conversation_trace>
 
 <current_policy>
@@ -297,17 +281,52 @@ You MUST output feedback for this trace (it is a failed trace) in the following 
 </current_policy>
 """
 
-        try:
-            resp = completion(
-                model=diagnosis_lm,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
+    try:
+        resp = completion(
+            model=diagnosis_lm,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        text = resp.choices[0].message.content or ""
+        return text.strip()
+    except Exception as e:
+        return f"(Diagnosis error: {e})"
+
+
+def _get_qualitative_asi(
+    results: Results,
+    failed_task_ids: list[str],
+    policy_preview: str,
+    diagnosis_lm: str,
+) -> str:
+    """Call LLM to diagnose failed tasks and suggest policy improvements."""
+    task_by_id = {t.id: t for t in results.tasks}
+    sims_by_task = {}
+    for sim in results.simulations:
+        if sim.task_id not in sims_by_task or (sim.reward_info and sim.reward_info.reward < 0.99):
+            sims_by_task[sim.task_id] = sim
+
+    diagnoses = []
+    for tid in failed_task_ids[:5]:  # Limit to 5 to control cost
+        task = task_by_id.get(tid)
+        sim = sims_by_task.get(tid)
+        if not task or not sim:
+            continue
+        task_desc = task.ticket
+        trace = _format_trace(sim.messages, max_messages=None)
+        reward_info = _format_reward_info(sim)
+        tools_list = _get_retail_available_tools_list()
+
+        diagnoses.append(
+            diagnose_single_retail_failure_for_gepa(
+                task_description=task_desc,
+                tools_list=tools_list,
+                evaluation_text=reward_info,
+                conversation_trace=trace,
+                policy_preview=policy_preview,
+                diagnosis_lm=diagnosis_lm,
             )
-            text = resp.choices[0].message.content or ""
-            # Omit task id in output; multiple failures are still separated by blank lines.
-            diagnoses.append(text.strip())
-        except Exception as e:
-            diagnoses.append(f"(Diagnosis error: {e})")
+        )
 
     return "\n\n".join(diagnoses) if diagnoses else ""
 

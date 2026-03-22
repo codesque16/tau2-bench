@@ -199,6 +199,13 @@ def add_run_args(parser):
         default=False,
         help="When using task set retail_solo_comms: run only tasks that have communicate_info (comms check). Default: run all tasks in the set.",
     )
+    parser.add_argument(
+        "--include-reference-steps",
+        dest="include_reference_steps",
+        action="store_true",
+        default=False,
+        help="Include <reference_steps> tool-name flow block in solo prompts. Default False.",
+    )
 
 
 def main():
@@ -251,6 +258,7 @@ def main():
                 policy_file=policy_file,
                 solo_eval_db_only=solo_eval_db_only,
                 solo_comms_only=getattr(args, "solo_comms_only", False),
+                include_reference_steps=getattr(args, "include_reference_steps", False),
             )
         )
 

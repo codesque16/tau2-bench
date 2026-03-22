@@ -224,6 +224,13 @@ class RunConfig(BaseModel):
             default=False,
         ),
     ]
+    include_reference_steps: Annotated[
+        bool,
+        Field(
+            description="When True (solo agents only), include a <reference_steps> block in the prompt that lists expected tool-call names in order. Default False.",
+            default=False,
+        ),
+    ]
 
     def validate(self) -> None:
         """
